@@ -1,6 +1,6 @@
 # CPEE Logging XES YAML
 
-To install the instatiation service go to the commandline
+To install the logging service go to the commandline
 
 ```bash
  gem install cpee-logging-xes-yaml
@@ -10,7 +10,7 @@ To install the instatiation service go to the commandline
 ```
 
 The service is running under port 9299. If this port has to be changed (or the
-host, or local-only access, ...), create a file instatiation.conf and add one
+host, or local-only access, ...), create a file log.conf and add one
 or many of the following yaml keys:
 
 ```yaml
@@ -21,7 +21,7 @@ or many of the following yaml keys:
 ```
 
 To connec the cpee to the log, one of two things can be done: (1) add a handler to
-a testset:
+a testset/template:
 
 ```xml
   <handlers>
@@ -46,9 +46,9 @@ Riddl::Server.new(CPEE::SERVER, options) do
 end.loop!
 ```
 
-to the server (or alternatively to a __server__.conf with :notification_init
+to the server (or alternatively to a log.conf with :notification_init
 beeing a top-level yaml key). Then add a subscription file to
-__server__/notifications/logging/subscription.xml
+notifications/logging/subscription.xml
 
 ```xml
 <subscription xmlns="http://riddl.org/ns/common-patterns/notifications-producer/2.0" url="http://localhost:9299/">
