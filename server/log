@@ -1,0 +1,18 @@
+#!/usr/bin/ruby
+require 'rubygems'
+require 'cpee-logging-xes-yaml/logging'
+
+options = {
+  :host => 'localhost',
+  :port => 9299,
+  :secure => false
+}
+
+Riddl::Server.new(CPEE::Logging::SERVER, options) do
+  accessible_description true
+  cross_site_xhr true
+
+  @riddl_opts[:log_dir] ||= File.join(__dir__,'logs')
+
+  use CPEE::Logging::implementation(@riddl_opts)
+end.loop!
