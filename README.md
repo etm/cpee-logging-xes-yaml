@@ -21,7 +21,7 @@ or many of the following yaml keys:
 ```
 
 To connec the cpee to the log, one of two things can be done: (1) add a handler to
-a testset:
+a testset/template:
 
 ```xml
   <handlers>
