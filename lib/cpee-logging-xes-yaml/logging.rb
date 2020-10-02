@@ -27,28 +27,30 @@ module CPEE
     SERVER = File.expand_path(File.join(__dir__,'logging.xml'))
 
     class Handler < Riddl::Implementation #{{{
-      def doc(topic,event_name,log_dir,template,instancenr,notification)
-        instance = notification['instance_uuid']
+      def doc(topic,event_name,log_dir,template,notification)
+        instance = notification['instance-uuid']
         return unless instance
 
-        activity = notification['activity']
-        parameters = notification['parameters']
-        receiving = notification['received']
+        instancenr = notification['instance']
+        content = notification['content']
+        activity = content['activity']
+        parameters = content['parameters']
+        receiving = content['received']
 
         log = YAML::load(File.read(template))
         log["log"]["trace"]["concept:name"] ||= instancenr
-        log["log"]["trace"]["cpee:name"] ||= notification['instance_name'] if notification['instance_name']
+        log["log"]["trace"]["cpee:name"] ||= notification['instance-name'] if notification['instance-name']
         log["log"]["trace"]["cpee:instance"] ||= instance
         File.open(File.join(log_dir,instance+'.xes.yaml'),'w'){|f| f.puts log.to_yaml} unless File.exists? File.join(log_dir,instance+'.xes.yaml')
         event = {}
         event["concept:instance"] = instancenr
-        event["concept:name"] = notification["label"] if notification["label"]
+        event["concept:name"] = content["label"] if content["label"]
         if notification["endpoint"]
-          event["concept:endpoint"] = notification["endpoint"]
+          event["concept:endpoint"] = content["endpoint"]
         end
         event["id:id"] = (activity.nil? || activity == "") ? 'external' : activity
         event["cpee:activity"] = event["id:id"]
-        event["cpee:activity_uuid"] = notification['activity_uuid'] if notification['activity_uuid']
+        event["cpee:activity_uuid"] = content['activity-uuid'] if content['activity-uuid']
         event["cpee:instance"] = instance
         case event_name
           when 'receiving', 'change', 'instantiation'
@@ -61,21 +63,21 @@ module CPEE
         event["cpee:lifecycle:transition"] = "#{topic}/#{event_name}"
         data_send = ((parameters["arguments"].nil? ? [] : parameters["arguments"]) rescue [])
         event["data"] = {"data_send" => data_send} unless data_send.empty?
-        if notification['changed']&.any?
+        if content['changed']&.any?
           if event.has_key? "data"
-            event["data"]["data_changed"] ||= notification['changed']
+            event["data"]["data_changed"] ||= content['changed']
           else
-            event["data"] = {"data_changer" => notification['changed']}
+            event["data"] = {"data_changer" => content['changed']}
           end
         end
-        if notification['values']&.any?
+        if content['values']&.any?
           if event.has_key? "data"
-            event["data"]["data_values"] ||= notification['values']
+            event["data"]["data_values"] ||= content['values']
           else
-            event["data"] = {"data_values" => notification['values']}
+            event["data"] = {"data_values" => content['values']}
           end
         end
-        unless receiving&.empty?
+        if receiving && !receiving.empty?
           if event.has_key? "data"
             event["data"]["data_received"] ||= receiving
           else
@@ -94,9 +96,8 @@ module CPEE
         event_name    = @p[2].value
         log_dir       = @a[0]
         template      = @a[1]
-        instancenr    = @h['CPEE_INSTANCE_URL'].split('/').last
-        notification  = JSON.parse(@p[3].value)
-        doc topic, event_name, log_dir, template, instancenr, notification
+        notification  = JSON.parse(@p[3].value.read)
+        doc topic, event_name, log_dir, template, notification
       end
     end #}}}
 
