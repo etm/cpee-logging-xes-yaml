@@ -98,9 +98,9 @@ else
 end
 
 if command == 'new'
-  if !File.exists?(p1)
-    FileUtils.cp_r(File.join(curpath,'..','server'),p1)
-    FileUtils.mkdir(File.join(p1,'logs')) rescue nil
+  if !File.exists?(dir)
+    FileUtils.cp_r(File.join(curpath,'..','server'),dir)
+    FileUtils.mkdir(File.join(dir,'logs')) rescue nil
   else
     puts 'Directory already exists.'
   end
