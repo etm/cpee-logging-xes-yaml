@@ -4,15 +4,18 @@ require 'rubygems'
 require 'optparse'
 require 'fileutils'
 require 'xml/smart'
+require 'yaml'
+require 'typhoeus'
+require 'stringio'
 
-def wrap(s, width=78, indent=18)
+def wrap(s, width=78, indent=18, extra_indent=4)
 	lines = []
 	line, s = s[0..indent-2], s[indent..-1]
   s.split(/\n/).each do |ss|
     ss.split(/[ \t]+/).each do |word|
       if line.size + word.size >= width
         lines << line
-        line = (" " * (indent)) + word
+        line = (" " * (indent + extra_indent)) + word
       else
         line << " " << word
       end
@@ -23,27 +26,88 @@ def wrap(s, width=78, indent=18)
 	return lines.join "\n"
 end
 
+def follow(fname,io,copy,deep=0)
+  if copy
+    File.write(File.basename(fname,'.xes.yaml') + '.xes.yaml',io.read)
+    io.rewind
+  end
+  YAML.load_stream(io) do |e|
+    if name = e.dig('log','trace','cpee:name')
+      puts " " * deep + name + " (#{File.basename(fname,'.xes.yaml')}) - #{e.dig('log','trace','concept:name')}"
+    end
+    if e.dig('event','concept:endpoint') == 'https://centurio.work/flow/start/url/' && e.dig('event','cpee:lifecycle:transition') == 'task/instantiation'
+      base = e.dig('event','data','data_receiver')
+      val = base.dig('CPEE-INSTANCE') rescue nil
+      if val.nil?
+        val = File.basename(base)
+      end
+      uuid = base.dig('CPEE-INSTANCE-UUID') rescue nil
+      unless uuid
+        res = Typhoeus.get(File.join('https://centurio.work/flow/engine/',val,'/properties/values/attributes/uuid/'))
+        if res.success?
+          uuid = XML::Smart.string(res.body).find('string(/*)')
+        end
+      end
+      react File.dirname(fname) + "/#{uuid}.xes.yaml",copy,deep + 2
+    end
+  end
+end
+
+def react(name,copy=false,deep=0)
+  if name.nil?
+    help
+  elsif name =~ /^https?:\/\//
+    res = Typhoeus.get(name)
+    if res.success?
+      file = Tempfile.new('sic')
+      file.write(res.body)
+      file.rewind
+      follow name, file, copy, deep
+      file.close
+      file.unlink
+    end
+  elsif File.exists? name
+    follow name, File.open(name), copy, deep
+  else
+    help
+  end
+end
+
+exname = File.basename($0)
+
 ARGV.options { |opt|
   opt.summary_indent = ' ' * 2
   opt.summary_width = 15
-  opt.banner = "Usage:\n#{opt.summary_indent}#{File.basename($0)} [DIR]\n"
+  opt.banner = "Usage:\n#{opt.summary_indent}#{exname} new [DIR] | view [URI] | copy [URI]\n"
   opt.on("Options:")
   opt.on("--help", "-h", "This text") { puts opt; exit }
 	opt.on("")
-  opt.on(wrap("[DIR]        scaffolds a sample logging service. Add a handler to a cpee instance to experience the pleasure."))
+  opt.on(wrap("new [DIR]         scaffolds a sample logging service. Add a handler to a cpee instance to experience the pleasure.",78,18,0))
+	opt.on("")
+  opt.on(wrap("view [DIR]        view the dependencies between processes and subprocesses.\nWorks for local and remote logs. Examples:\n#{exname} view https://cpee.org/log/123.xes.yaml\n#{exname} view https://cpee.org/log/a.xes.yaml > index.txt\n#{exname} view ~/log/logs/456.xes.yaml"))
+	opt.on("")
+  opt.on(wrap("copy [DIR]        copy dependent processes and subprocesses to the current\ndirectory. Works for local and remote logs. Examples:\n#{exname} copy https://cpee.org/log/123.xes.yaml\n#{exname} copy ~/log/logs/456.xes.yaml"))
   opt.parse!
 }
-if (ARGV.length != 1)
+if (ARGV.length != 2)
   puts ARGV.options
   exit
 else
-  p1 = ARGV[0]
+  command = ARGV[0]
+  dir = ARGV[1]
 end
 
-if !File.exists?(p1)
-  FileUtils.cp_r(File.join(curpath,'..','server'),p1)
-  FileUtils.mkdir(File.join(p1,'logs')) rescue nil
-
+if command == 'new'
+  if !File.exists?(p1)
+    FileUtils.cp_r(File.join(curpath,'..','server'),p1)
+    FileUtils.mkdir(File.join(p1,'logs')) rescue nil
+  else
+    puts 'Directory already exists.'
+  end
+elsif command == 'view'
+  react dir, false
+elsif command == 'copy'
+  react dir, true
 else
-  puts 'Directory already exists.'
+  puts ARGV.options
 end
