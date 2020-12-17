@@ -61,6 +61,8 @@ module CPEE
             event["lifecycle:transition"] = "start"
         end
         event["cpee:lifecycle:transition"] = "#{topic}/#{event_name}"
+        event["cpee:state"] = content['state'] if content['state']
+        event["cpee:description"] = content['dslx'] if content['dslx']
         data_send = ((parameters["arguments"].nil? ? [] : parameters["arguments"]) rescue [])
         event["data"] = {"data_send" => data_send} unless data_send.empty?
         if content['changed']&.any?
