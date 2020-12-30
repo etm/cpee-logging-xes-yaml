@@ -20,7 +20,7 @@ or many of the following yaml keys:
  :log_dir: /var/log/cpee
 ```
 
-To connec the cpee to the log, one of two things can be done: (1) add a handler to
+To connect the cpee to the log, one of two things can be done: (1) add a handler to
 a testset/template:
 
 ```xml
@@ -31,6 +31,8 @@ a testset/template:
       <events topic="endpoints">change</events>
       <events topic="attributes">change</events>
       <events topic="task">instantiation</events>
+      <events topic="description">change</events>
+      <events topic="state">change</events>
     </handler>
   </handlers>
 ```
@@ -46,7 +48,7 @@ Riddl::Server.new(CPEE::SERVER, options) do
 end.loop!
 ```
 
-to the server (or alternatively to a log.conf with :notification_init
+to the server (or alternatively to a cpee.conf with :notification_init
 beeing a top-level yaml key). Then add a subscription file to
 notifications/logging/subscription.xml
 
@@ -64,6 +66,12 @@ notifications/logging/subscription.xml
     <event>change</event>
   </topic>
   <topic id="attributes">
+    <event>change</event>
+  </topic>
+  <topic id="description">
+    <event>change</event>
+  </topic>
+  <topic id="state">
     <event>change</event>
   </topic>
   <topic id="task">
