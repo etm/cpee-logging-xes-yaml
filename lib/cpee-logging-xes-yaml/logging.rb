@@ -45,7 +45,7 @@ module CPEE
         event = {}
         event["concept:instance"] = instancenr
         event["concept:name"] = content["label"] if content["label"]
-        if notification["endpoint"]
+        if content["endpoint"]
           event["concept:endpoint"] = content["endpoint"]
         end
         event["id:id"] = (activity.nil? || activity == "") ? 'external' : activity

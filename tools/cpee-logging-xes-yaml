@@ -35,20 +35,16 @@ def follow(fname,io,copy,deep=0)
     if name = e.dig('log','trace','cpee:name')
       puts " " * deep + name + " (#{File.basename(fname,'.xes.yaml')}) - #{e.dig('log','trace','concept:name')}"
     end
-    if e.dig('event','concept:endpoint') == 'https://centurio.work/flow/start/url/' && e.dig('event','cpee:lifecycle:transition') == 'task/instantiation'
+    if e.dig('event','cpee:lifecycle:transition') == 'task/instantiation'
       base = e.dig('event','data','data_receiver')
       val = base.dig('CPEE-INSTANCE') rescue nil
       if val.nil?
         val = File.basename(base)
       end
       uuid = base.dig('CPEE-INSTANCE-UUID') rescue nil
-      unless uuid
-        res = Typhoeus.get(File.join('https://centurio.work/flow/engine/',val,'/properties/values/attributes/uuid/'))
-        if res.success?
-          uuid = XML::Smart.string(res.body).find('string(/*)')
-        end
+      if uuid
+        react File.dirname(fname) + "/#{uuid}.xes.yaml",copy,deep + 2
       end
-      react File.dirname(fname) + "/#{uuid}.xes.yaml",copy,deep + 2
     end
   end
 end
