@@ -27,7 +27,8 @@ module CPEE
     SERVER = File.expand_path(File.join(__dir__,'logging.xml'))
 
     class Handler < Riddl::Implementation #{{{
-      def doc(topic,event_name,log_dir,template,notification)
+      def doc(topic,event_name,log_dir,template,payload)
+        notification = JSON.parse(payload)
         instance = notification['instance-uuid']
         return unless instance
 
@@ -63,28 +64,14 @@ module CPEE
         event["cpee:lifecycle:transition"] = "#{topic}/#{event_name}"
         event["cpee:state"] = content['state'] if content['state']
         event["cpee:description"] = content['dslx'] if content['dslx']
-        data_send = ((parameters["arguments"].nil? ? [] : parameters["arguments"]) rescue [])
-        event["data"] = {"data_send" => data_send} unless data_send.empty?
-        if content['changed']&.any?
-          if event.has_key? "data"
-            event["data"]["data_changed"] ||= content['changed']
-          else
-            event["data"] = {"data_changer" => content['changed']}
-          end
+        unless parameters["arguments"]&.nil?
+          event["data"] = parameters["arguments"]
         end
-        if content['values']&.any?
-          if event.has_key? "data"
-            event["data"]["data_values"] ||= content['values']
-          else
-            event["data"] = {"data_values" => content['values']}
-          end
+        if content['changed']&.any?
+          event["data"] = content['values']
         end
         if receiving && !receiving.empty?
-          if event.has_key? "data"
-            event["data"]["data_received"] ||= receiving
-          else
-            event["data"] = {"data_receiver" => receiving}
-          end
+          event["raw"] = receiving
         end
         event["time:timestamp"]= event['cpee:timestamp'] || Time.now.strftime("%Y-%m-%dT%H:%M:%S.%L%:z")
         File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
@@ -98,8 +85,11 @@ module CPEE
         event_name    = @p[2].value
         log_dir       = @a[0]
         template      = @a[1]
-        notification  = JSON.parse(@p[3].value.read)
-        doc topic, event_name, log_dir, template, notification
+        notification  = @p[3].value.read
+        EM.defer do
+          doc topic, event_name, log_dir, template, notification
+        end
+        nil
       end
     end #}}}
 

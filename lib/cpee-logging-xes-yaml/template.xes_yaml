@@ -1,11 +1,19 @@
 ---
 log:
+  namespaces:
+    stream: https://cpee.org/sensorstream/
+    ssn: http://www.w3.org/ns/ssn/
+    sosa: http://www.w3.org/ns/sosa/
+  xes:
+    creator: cpee.org
+    features: nested-attributes
   extension:
     time: http://www.xes-standard.org/time.xesext
     concept: http://www.xes-standard.org/concept.xesext
-    organisational: http://www.xes-standard.org/org.xesext
+    id: http://www.xes-standard.org/identity.xesext
     lifecycle: http://www.xes-standard.org/lifecycle.xesext
     cpee: http://cpee.org/cpee.xesext
+    stream: https://cpee.org/sensorstream/sensorstream.xesext
   global:
     trace:
       concept:name: __INVALID__
@@ -19,10 +27,4 @@ log:
       lifecycle:transition: complete
       cpee:lifecycle:transition: activity/calling
       time:timestamp: ''
-  classifier:
-    Data: data_send data_received data_changed data_values
-    Data_Received: data_receiver
-    Data_Send: data_send
-    Data_Changed: data_changer
-    Data_Values: data_values
   trace: {}
