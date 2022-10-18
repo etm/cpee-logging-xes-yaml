@@ -28,7 +28,8 @@ module CPEE
       XML::Smart::string(xml) do |doc|
         doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
         doc.find('//d:call').each do |c|
-          c.find('d:annotations/d:_context_data_analysis/d:probes').each do |p|
+          File.unlink(where + '_' + c.attributes['id'] + '.probe') rescue nil
+          c.find('d:annotations/d:_context_data_analysis/d:probes[d:probe]').each do |p|
             File.write(where + '_' + c.attributes['id'] + '.probe', p.dump)
           end
         end
