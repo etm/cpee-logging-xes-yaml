@@ -24,6 +24,28 @@ end
 module CPEE
   module Logging
 
+    def self::val_merge(target,val,tid,tso)
+      if val.is_a? Array
+        val.each do |e|
+          if e.is_a? StreamPoint
+            e.source ||= tso
+            target << e.to_h(tid)
+          end
+        end
+      else
+        tp = nil
+        if val.is_a? StreamPoint
+          tp = val
+          tp.source = tso if tp.source.nil?
+        else
+          tp = StreamPoint.new
+          tp.source =  tso
+          tp.value = val
+        end
+        target << tp.to_h(tid)
+      end
+    end
+
     def self::extract_probes(where,xml)
       XML::Smart::string(xml) do |doc|
         doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
@@ -36,8 +58,9 @@ module CPEE
       end
     end
 
-    def self::extract_sensor(rs,code,result)
-      result.map! do |res|
+    def self::extract_result(result)
+      p result
+      ret = result.map do |res|
         if res['mimetype'].nil?
           res['value']
         elsif res['mimetype'] == 'application/json'
@@ -64,7 +87,10 @@ module CPEE
           res['data']
         end
       end
-      result = result[0] if result.length == 1
+      ret.length == 1 ? ret[0] : ret
+    end
+
+    def self::extract_sensor(rs,code,result)
       rs.instance_eval(code)
     end
 
@@ -135,6 +161,21 @@ module CPEE
         event["data"] = content['values'].map do |k,v|
           { 'name' => k, 'value' => v }
         end
+
+        fname = File.join(log_dir,instance + '_' + event["id:id"] + '.probe')
+        dname = File.join(log_dir,instance + '.data.json')
+
+        if File.exists?(fname)
+          rs = WEEL::ReadStructure.new(File.exists?(dname) ? JSON::load(File::open(dname)) : {},{},{})
+          XML::Smart::open_unprotected(fname) do |doc|
+            doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
+            doc.find('//d:probe[d:extractor_type="intrinsic"]').each do |p|
+              event['stream:sensorstream'] ||= []
+              val = CPEE::Logging::extract_sensor(rs,p.find('string(d:extractor_code)'),nil) rescue nil
+              CPEE::Logging::val_merge(event['stream:sensorstream'],val,p.find('string(d:id)'),p.find('string(d:source)'))
+            end
+          end
+        end
       end
       if receiving && !receiving.empty?
         fname = File.join(log_dir,instance + '_' + event["id:id"] + '.probe')
@@ -142,35 +183,24 @@ module CPEE
 
         if File.exists?(fname)
           te = event.dup
-          te['stream:sensorstream'] = []
 
           rs = WEEL::ReadStructure.new(File.exists?(dname) ? JSON::load(File::open(dname)) : {},{},{})
           XML::Smart::open_unprotected(fname) do |doc|
             doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
-            doc.find('//d:probe').each do |p|
-              tid = p.find('string(d:id)')
-              tso = p.find('string(d:source)')
-              if p.find('d:extractor_type[.="extrinsic"]')
-                val = CPEE::Logging::extract_sensor(rs,p.find('string(d:extractor_code)'),receiving) rescue nil
-                if val.is_a? Array
-                  val.each do |e|
-                    if e.is_a? StreamPoint
-                      e.source ||= tso
-                      te['stream:sensorstream'] << e.to_h(tid)
-                    end
-                  end
-                else
-                  tp = StreamPoint.new
-                  tp.source =  tso
-                  tp.value = val
-                  te['stream:sensorstream'] << tp.to_h(tid)
-                end
+            if doc.find('//d:probe/d:extractor_type[.="extrinsic"]').any?
+              rc = CPEE::Logging::extract_result(receiving)
+              doc.find('//d:probe[d:extractor_type="extrinsic"]').each do |p|
+                te['stream:sensorstream'] ||= []
+                val = CPEE::Logging::extract_sensor(rs,p.find('string(d:extractor_code)'),rc) rescue nil
+                CPEE::Logging::val_merge(te['stream:sensorstream'],val,p.find('string(d:id)'),p.find('string(d:source)'))
               end
             end
           end
-          te["cpee:lifecycle:transition"] = "sensor/stream"
-          File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
-            f << {'event' => te}.to_yaml
+          if te['stream:sensorstream']
+            te["cpee:lifecycle:transition"] = "sensor/stream"
+            File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
+              f << {'event' => te}.to_yaml
+            end
           end
         end
 
