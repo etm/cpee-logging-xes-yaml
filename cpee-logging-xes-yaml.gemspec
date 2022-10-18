@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name             = "cpee-logging-xes-yaml"
-  s.version          = "1.1.3"
+  s.version          = "1.1.4"
   s.platform         = Gem::Platform::RUBY
   s.license          = "LGPL-3.0"
   s.summary          = "Logging for the cloud process execution engine (cpee.org)"

@@ -59,7 +59,6 @@ module CPEE
     end
 
     def self::extract_result(result)
-      p result
       ret = result.map do |res|
         if res['mimetype'].nil?
           res['value']
