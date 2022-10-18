@@ -131,7 +131,9 @@ module CPEE
         event["data"] = parameters["arguments"]
       end if parameters
       if content['changed']&.any?
-        event["data"] = content['values']
+        event["data"] = content['values'].map do |k,v|
+          { 'name' => k, 'value' => v }
+        end
       end
       if receiving && !receiving.empty?
         fname = File.join(log_dir,instance + '_' + event["id:id"] + '.probe')
