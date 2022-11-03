@@ -1,22 +1,47 @@
 require 'weel'
 
 class StreamPoint
-  attr_accessor :value, :timestamp, :source, :meta
+  attr_accessor :id, :value, :timestamp, :source, :meta
 
-  def initialize
+  def initialize(id)
+    @id = id
     @value = nil
     @timestamp = Time.now
     @source = nil
     @meta = nil
   end
 
+  def to_h
+    tp = { }
+    tp['stream:id'] = @id
+    tp['stream:value'] = @value
+    tp['stream:timestamp'] = @timestamp
+    tp['stream:source'] = @source unless @source.nil?
+    tp['stream:meta'] = @meta unless @meta.nil?
+    tp
+  end
+end
+class Stream < Array
+  attr_accessor :id, :source, :meta
+
+  def initialize(id)
+    @id = id
+    @source = nil
+    @meta = nil
+  end
+
   def to_h(id)
-    tp = { 'stream:point' => { } }
-    tp['stream:point']['stream:id'] = id
-    tp['stream:point']['stream:value'] = @value
-    tp['stream:point']['stream:timestamp'] = @timestamp
-    tp['stream:point']['stream:source'] = @source unless @source.nil?
-    tp['stream:point']['stream:meta'] = @meta unless @meta.nil?
+    tp = { }
+    tp['stream:id'] = @id
+    tp['stream:source'] = @source unless @source.nil?
+    tp['stream:meta'] = @meta unless @meta.nil?
+    val.each do |e|
+      if e.is_a? Stream
+        tp['stream:sensorstream'] = e.to_h
+      elsif e.is_a? StreamPoint
+        tp['stream:point'] = e.to_h
+      end
+    end
     tp
   end
 end
@@ -25,24 +50,18 @@ module CPEE
   module Logging
 
     def self::val_merge(target,val,tid,tso)
-      if val.is_a? Array
-        val.each do |e|
-          if e.is_a? StreamPoint
-            e.source ||= tso
-            target << e.to_h(tid)
-          end
-        end
+      if val.is_a? Stream
+        target << val.to_h
       else
         tp = nil
         if val.is_a? StreamPoint
           tp = val
           tp.source = tso if tp.source.nil?
         else
-          tp = StreamPoint.new
+          tp = StreamPoint.new(tid)
           tp.source =  tso
           tp.value = val
         end
-        target << tp.to_h(tid)
       end
     end
 
