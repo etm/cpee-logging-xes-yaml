@@ -117,10 +117,10 @@ module CPEE
       ret.length == 1 ? ret[0] : ret
     end
 
-    def self::extract_sensor(rs,code,result)
-      rs.instance_eval(code)
+    def self::extract_sensor(rs,code,pid,result)
+      rs.instance_eval(code,'probe',1)
     rescue => e
-      'Error: ' + e.message
+      e.backtrace[0].gsub(/(\w+):(\d+):in.*/,'Probe ' + pid + ' Line \2: ') + e.message
     end
 
     def self::persist_values(where,values)
@@ -199,9 +199,10 @@ module CPEE
           XML::Smart::open_unprotected(fname) do |doc|
             doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
             doc.find('//d:probe[d:extractor_type="intrinsic"]').each do |p|
+              pid = p.find('string(d:id)')
               event['stream:sensorstream'] ||= []
-              val = CPEE::Logging::extract_sensor(rs,p.find('string(d:extractor_code)'),nil) rescue nil
-              CPEE::Logging::val_merge(event['stream:sensorstream'],val,p.find('string(d:id)'),p.find('string(d:source)'))
+              val = CPEE::Logging::extract_sensor(rs,p.find('string(d:extractor_code)'),pid,nil) rescue nil
+              CPEE::Logging::val_merge(event['stream:sensorstream'],val,pid,p.find('string(d:source)'))
             end
           end
         end
@@ -219,9 +220,10 @@ module CPEE
             if doc.find('//d:probe/d:extractor_type[.="extrinsic"]').any?
               rc = CPEE::Logging::extract_result(receiving)
               doc.find('//d:probe[d:extractor_type="extrinsic"]').each do |p|
+                pid = p.find('string(d:id)')
                 te['stream:sensorstream'] ||= []
-                val = CPEE::Logging::extract_sensor(rs,p.find('string(d:extractor_code)'),rc) rescue nil
-                CPEE::Logging::val_merge(te['stream:sensorstream'],val,p.find('string(d:id)'),p.find('string(d:source)'))
+                val = CPEE::Logging::extract_sensor(rs,p.find('string(d:extractor_code)'),pid,rc) rescue nil
+                CPEE::Logging::val_merge(te['stream:sensorstream'],val,pid,p.find('string(d:source)'))
               end
             end
           end
