@@ -21,25 +21,32 @@ class StreamPoint
     tp
   end
 end
-class Stream < Array
+class Stream
   attr_accessor :id, :source, :meta
 
   def initialize(id)
     @id = id
     @source = nil
     @meta = nil
+    @values = []
   end
 
-  def to_h(id)
-    tp = { }
-    tp['stream:id'] = @id
-    tp['stream:source'] = @source unless @source.nil?
-    tp['stream:meta'] = @meta unless @meta.nil?
-    val.each do |e|
+  def <<(val)
+    @values << val
+  end
+
+  def to_list
+    tp = []
+    tp << {'stream:id' => @id}
+    tp << {'stream:source' => @source} unless @source.nil?
+    tp << {'stream:meta' => @meta} unless @meta.nil?
+    @values.each do |e|
       if e.is_a? Stream
-        tp['stream:sensorstream'] = e.to_h
+        e.source = @source if e.source.nil? && !@source.nil?
+        tp << { 'stream:sensorstream' => e.to_list }
       elsif e.is_a? StreamPoint
-        tp['stream:point'] = e.to_h
+        e.source = @source if e.source.nil? && !@source.nil?
+        tp << { 'stream:point' => e.to_h }
       end
     end
     tp
@@ -51,7 +58,8 @@ module CPEE
 
     def self::val_merge(target,val,tid,tso)
       if val.is_a? Stream
-        target << val.to_h
+        val.source = tso if val.source.nil?
+        target.push *val.to_list
       else
         tp = nil
         if val.is_a? StreamPoint
@@ -62,6 +70,7 @@ module CPEE
           tp.source =  tso
           tp.value = val
         end
+        target << tp.to_h
       end
     end
 
@@ -110,6 +119,8 @@ module CPEE
 
     def self::extract_sensor(rs,code,result)
       rs.instance_eval(code)
+    rescue => e
+      'Error: ' + e.message
     end
 
     def self::persist_values(where,values)
