@@ -1,7 +1,8 @@
 require 'weel'
 
 class StreamPoint
-  attr_accessor :id, :value, :timestamp, :source, :meta
+  attr_accessor :value, :timestamp, :source, :meta
+  attr_reader :id
 
   def initialize(id)
     @id = id
@@ -23,9 +24,11 @@ class StreamPoint
 end
 class Stream
   attr_accessor :id, :source, :meta
+  attr_reader :name
 
-  def initialize(id)
-    @id = id
+  def initialize(name)
+    @name = name
+    @id = nil
     @source = nil
     @meta = nil
     @values = []
@@ -37,7 +40,8 @@ class Stream
 
   def to_list
     tp = []
-    tp << {'stream:id' => @id}
+    tp << {'stream:name' => @name}
+    tp << {'stream:id' => @id} unless @id.nil?
     tp << {'stream:source' => @source} unless @source.nil?
     tp << {'stream:meta' => @meta} unless @meta.nil?
     @values.each do |e|
@@ -70,7 +74,7 @@ module CPEE
           tp.source =  tso
           tp.value = val
         end
-        target << tp.to_h
+        target << { 'stream:point' => e.to_h }
       end
     end
 
@@ -94,9 +98,9 @@ module CPEE
           JSON::parse(res['data'])
         elsif res['mimetype'] == 'application/xml' || res['mimetype'] == 'text/xml'
           XML::Smart::string(res['data']) rescue nil
-        elsif res.mimetype == 'text/yaml'
+        elsif res['mimetype'] == 'text/yaml'
           YAML::load(res['data']) rescue nil
-        elsif result[0].mimetype == 'text/plain'
+        elsif res['mimetype'] == 'text/plain'
           t = res['data']
           if t.start_with?("<?xml version=")
             t = XML::Smart::string(t)
@@ -105,7 +109,7 @@ module CPEE
             t = t.to_i if t == t.to_i.to_s
           end
           t
-        elsif res.mimetype == 'text/html'
+        elsif res['mimetype'] == 'text/html'
           t = res['data']
           t = t.to_f if t == t.to_f.to_s
           t = t.to_i if t == t.to_i.to_s
