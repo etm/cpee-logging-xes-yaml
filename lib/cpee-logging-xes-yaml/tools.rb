@@ -74,7 +74,7 @@ module CPEE
           tp.source =  tso
           tp.value = val
         end
-        target << { 'stream:point' => e.to_h }
+        target << { 'stream:point' => tp.to_h }
       end
     end
 
