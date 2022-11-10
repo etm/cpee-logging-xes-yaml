@@ -2,11 +2,19 @@
   <interface name="events">
     <xi:include href="http://www.riddl.org/ns/common-patterns/notifications-consumer/2.0/consumer.xml"/>
   </interface>
+  <interface name="notifications">
+    <xi:include href="http://www.riddl.org/ns/common-patterns/notifications-producer/2.0/producer.xml"/>
+  </interface>
+
 
   <facade>
     <tile>
       <layer name="events">
         <apply-to>/</apply-to>
+      </layer>
+      <layer name="notifications">
+        <apply-to>/</apply-to>
+        <block method="sse">/notifications/subscriptions/{}/sse</block>
       </layer>
     </tile>
   </facade>
