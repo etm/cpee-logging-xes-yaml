@@ -23,8 +23,6 @@ require 'time'
 
 require_relative 'tools'
 
-matze = 'localhostr:9318'
-
 module CPEE
   module Logging
 
@@ -44,13 +42,56 @@ module CPEE
       end
     end
 
+    class Overview < Riddl::Implementation #{{{
+      def response
+        Riddl::Parameter::Complex.new("overview","text/xml") do
+          <<-END
+            <overview xmlns='http://riddl.org/ns/common-patterns/notifications-producer/2.0'>
+              <topics/>
+              <subscriptions/>
+            </overview>
+          END
+        end
+
+      end
+    end #}}}
+
+    class Topics < Riddl::Implementation #{{{
+      def response
+        opts = @a[0]
+        Riddl::Parameter::Complex.new("overview","text/xml") do
+          File.read(opts[:topics])
+        end
+      end
+    end #}}}
+
+
     def self::implementation(opts)
-      opts[:log_dir] ||= File.join(__dir__,'logs')
-      opts[:template] ||= File.join(__dir__,'template.xes_yaml')
+      opts[:log_dir]           ||= File.expand_path(File.join(__dir__,'logs'))
+      opts[:notifications_dir] ||= File.expand_path(File.join(__dir__,'notifications'))
+      opts[:template]          ||= File.expand_path(File.join(__dir__,'template.xes_yaml'))
+      opts[:topics]            ||= File.expand_path(File.join(__dir__,'topics.xml'))
 
       Proc.new do
         interface 'events' do
           run Handler, opts[:log_dir], opts[:template] if post 'event'
+        end
+        interface 'notifications' do
+          on resource "notifications" do
+            run Overview if get
+            on resource "topics" do
+              run Topics, opts if get
+            end
+            on resource "subscriptions" do
+              run Subscriptions, id, opts if get
+              run CreateSubscription, id, opts if post 'create_subscription'
+              on resource do
+                run Subscription, id, opts if get
+                run UpdateSubscription, id, opts if put 'change_subscription'
+                run DeleteSubscription, id, opts if delete
+              end
+            end
+          end
         end
       end
     end

@@ -13,6 +13,7 @@ Riddl::Server.new(CPEE::Logging::SERVER, options) do
   cross_site_xhr true
 
   @riddl_opts[:log_dir] ||= File.join(__dir__,'logs')
+  @riddl_opts[:subscriptions_dir] ||= File.join(__dir__,'subscriptions')
 
   use CPEE::Logging::implementation(@riddl_opts)
 end.loop!

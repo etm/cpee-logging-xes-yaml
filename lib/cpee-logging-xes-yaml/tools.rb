@@ -1,3 +1,19 @@
+# This file is part of CPEE-LOGGING-XES-YAML.
+#
+# CPEE-LOGGING-XES-YAML is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# CPEE-LOGGING-XES-YAML is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
+# more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# CPEE-LOGGING-XES-YAML (file LICENSE in the main directory).  If not, see
+# <http://www.gnu.org/licenses/>.
+
 require 'weel'
 
 class StreamPoint
@@ -74,7 +90,7 @@ module CPEE
           tp.source =  tso
           tp.value = val
         end
-        target << { 'stream:point' => e.to_h }
+        target << { 'stream:point' => tp.to_h }
       end
     end
 
