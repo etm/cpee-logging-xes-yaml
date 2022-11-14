@@ -88,8 +88,9 @@ module CPEE
       def response
         opts = @a[0]
         id = @r[-1]
-        sub = File.join(opts[:notifications_dir],id,'subscription.xml')
-        Riddl::Parameter::Complex.new("subscriptions","text/xml",File.open(sub))
+        doc = XML::Smart::open_unprotected(File.join(opts[:notifications_dir],id,'subscription.xml'))
+        doc.root.attributes['id'] = id
+        Riddl::Parameter::Complex.new("subscriptions","text/xml",doc.to_s)
       end
     end #}}}
 
