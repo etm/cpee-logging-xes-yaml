@@ -52,7 +52,6 @@ module CPEE
             </overview>
           END
         end
-
       end
     end #}}}
 
@@ -65,6 +64,34 @@ module CPEE
       end
     end #}}}
 
+    class Subscriptions < Riddl::Implementation #{{{
+      def response
+        opts = @a[0]
+        Riddl::Parameter::Complex.new("subscriptions","text/xml") do
+          ret = XML::Smart::string <<-END
+            <subscriptions xmlns='http://riddl.org/ns/common-patterns/notifications-producer/2.0'/>
+          END
+          Dir.glob(File.join(opts[:notifications_dir],'*','subscription.xml')).each do |f|
+            ret.root.add('subscription').tap do |n|
+              n.attributes['id'] = File.basename(File.dirname(f))
+              XML::Smart.open_unprotected(f) do |doc|
+                n.attributes['url'] =  doc.root.attributes['url']
+              end
+            end
+          end
+          ret.to_s
+        end
+      end
+    end #}}}
+
+    class Subscription < Riddl::Implementation #{{{
+      def response
+        opts = @a[0]
+        id = @r[-1]
+        sub = File.join(opts[:notifications_dir],id,'subscription.xml')
+        Riddl::Parameter::Complex.new("subscriptions","text/xml",File.open(sub))
+      end
+    end #}}}
 
     def self::implementation(opts)
       opts[:log_dir]           ||= File.expand_path(File.join(__dir__,'logs'))
@@ -83,12 +110,12 @@ module CPEE
               run Topics, opts if get
             end
             on resource "subscriptions" do
-              run Subscriptions, id, opts if get
-              run CreateSubscription, id, opts if post 'create_subscription'
+              run Subscriptions, opts if get
+              run CreateSubscription, opts if post 'create_subscription'
               on resource do
-                run Subscription, id, opts if get
-                run UpdateSubscription, id, opts if put 'change_subscription'
-                run DeleteSubscription, id, opts if delete
+                run Subscription, opts if get
+                run UpdateSubscription, opts if put 'change_subscription'
+                run DeleteSubscription, opts if delete
               end
             end
           end
