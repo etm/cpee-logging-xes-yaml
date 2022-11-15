@@ -76,6 +76,10 @@ end
 module CPEE
   module Logging
 
+    def self::notify(event)
+
+    end
+
     def self::val_merge(target,val,tid,tso)
       if val.is_a? Stream
         val.source = tso if val.source.nil?

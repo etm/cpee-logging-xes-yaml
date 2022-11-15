@@ -99,6 +99,19 @@ module CPEE
       opts[:notifications_dir] ||= File.expand_path(File.join(__dir__,'notifications'))
       opts[:template]          ||= File.expand_path(File.join(__dir__,'template.xes_yaml'))
       opts[:topics]            ||= File.expand_path(File.join(__dir__,'topics.xml'))
+      opts[:subscriptions]     =  {}
+
+      Dir.glob(File.join(opts[:notifications_dir],'*','subscription.xml')).each do |f|
+        XML::Smart::open_unprotected(f) do |doc|
+          doc.register_namespace :p, 'http://riddl.org/ns/common-patterns/notifications-producer/2.0'
+          doc.find('/p:subscription/p:topic').each do |t|
+            t.find('p:event').each do |e|
+              opts[:subscriptions][t.attributes['id']+'/'+e.text] ||= []
+              opts[:subscriptions][t.attributes['id']+'/'+e.text] << doc.root.attributes['url']
+            end
+          end
+        end
+      end
 
       Proc.new do
         interface 'events' do
