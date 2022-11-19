@@ -30,13 +30,16 @@ module CPEE
 
     class Handler < Riddl::Implementation
       def response
-        topic         = @p[1].value
-        event_name    = @p[2].value
-        log_dir       = @a[0]
-        template      = @a[1]
-        notification  = @p[3].value.read
+        opts       = @a[0]
+        type       = @p[0].value
+        topic      = @p[1].value
+        event_name = @p[2].value
+        payload    = @p[3].value.read
         EM.defer do
-          CPEE::Logging::doc topic, event_name, log_dir, template, notification
+          CPEE::Logging::forward opts, topic, event_name, payload
+        end if type == 'event'
+        EM.defer do
+          CPEE::Logging::doc opts, topic, event_name, payload
         end
         nil
       end
@@ -115,7 +118,7 @@ module CPEE
 
       Proc.new do
         interface 'events' do
-          run Handler, opts[:log_dir], opts[:template] if post 'event'
+          run Handler, opts if post 'event'
         end
         interface 'notifications' do
           on resource "notifications" do
