@@ -213,6 +213,8 @@ module CPEE
         self::notify(opts,topic,event_name,payload)
       elsif topic == 'state' && event_name == 'change'
         self::notify(opts,topic,event_name,payload)
+      elsif topic == 'gateway' && event_name == 'join'
+        self::notify(opts,topic,event_name,payload)
       end
     end
 
