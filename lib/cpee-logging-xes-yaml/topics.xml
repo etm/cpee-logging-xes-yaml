@@ -23,6 +23,10 @@
   <topic id='stream'>
     <event>extraction</event>
   </topic>
+  <topic id='gateway'>
+    <event>decide</event>
+    <event>join</event>
+  </topic>
   <topic id='state'>
     <event>change</event>
   </topic>
