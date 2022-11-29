@@ -154,7 +154,6 @@ module CPEE
           end
         end
       end
-      pp ret
       ret
     end
 
@@ -201,7 +200,8 @@ module CPEE
       end
       f = File.open(where,'r+')
       f.flock(File::LOCK_EX)
-      json = JSON::load(f).merge(values)
+      json = JSON::load(f) || {}
+      json.merge!(values)
       f.rewind
       f.truncate(0)
       f.write(JSON.generate(json))
