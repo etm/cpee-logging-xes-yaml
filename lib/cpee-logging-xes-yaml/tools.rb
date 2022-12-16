@@ -303,12 +303,12 @@ module CPEE
               CPEE::Logging::val_merge(event['stream:datastream'],val,pid,p.find('string(d:source)'))
             end
           end
-        end
-        notification['datastream'] = event['stream:datastream']
-        EM.defer do
-          notification['topic'] = 'stream'
-          notification['name'] = 'extraction'
-          self::notify(opts,'stream','extraction',notification.to_json)
+          notification['datastream'] = event['stream:datastream']
+          EM.defer do
+            notification['topic'] = 'stream'
+            notification['name'] = 'extraction'
+            self::notify(opts,'stream','extraction',notification.to_json)
+          end
         end
       end
       if topic == 'activity' && event_name == 'receiving' && receiving && !receiving.empty?
@@ -336,12 +336,12 @@ module CPEE
             File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
               f << {'event' => te}.to_yaml
             end
-          end
-          notification['datastream'] = te['stream:datastream']
-          EM.defer do
-            notification['topic'] = 'stream'
-            notification['name'] = 'extraction'
-            self::notify(opts,'stream','extraction',notification.to_json)
+            notification['datastream'] = te['stream:datastream']
+            EM.defer do
+              notification['topic'] = 'stream'
+              notification['name'] = 'extraction'
+              self::notify(opts,'stream','extraction',notification.to_json)
+            end
           end
         end
       end
