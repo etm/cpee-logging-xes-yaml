@@ -45,12 +45,12 @@ end
 
 def follow(fname,io,copy,deep=0)
   if copy
-    File.write(File.basename(fname,'.xes.yaml') + '.xes.shift.yaml',io.read)
+    File.write(File.basename(fname,'.xes.yaml') + '.xes.yaml',io.read)
     io.rewind
   end
   YAML.load_stream(io) do |e|
     if name = e.dig('log','trace','cpee:name')
-      puts " " * deep + name + " (#{File.basename(fname,'.xes.shift.yaml')}) - #{e.dig('log','trace','concept:name')}"
+      puts " " * deep + name + " (#{File.basename(fname,'.xes.yaml')}) - #{e.dig('log','trace','concept:name')}"
     end
     if e.dig('event','cpee:lifecycle:transition') == 'task/instantiation'
       base = e.dig('event','raw')
@@ -60,7 +60,7 @@ def follow(fname,io,copy,deep=0)
       end
       uuid = base.dig('CPEE-INSTANCE-UUID') rescue nil
       if uuid
-        react File.dirname(fname) + "/#{uuid}.xes.shift.yaml",copy,deep + 2
+        react File.dirname(fname) + "/#{uuid}.xes.yaml",copy,deep + 2
       end
     end
   end
