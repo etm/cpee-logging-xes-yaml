@@ -243,7 +243,9 @@ module CPEE
           so['content']['activity'] = k
           so['topic'] = 'annotation'
           so['name'] = 'change'
-          self::notify(opts,'annotation','change',so.to_json)
+          EM.defer do
+            self::notify(opts,'annotation','change',so.to_json)
+          end
         end
       end
 
@@ -302,8 +304,14 @@ module CPEE
             end
           end
         end
+        notification['datastream'] = event['stream:datastream']
+        EM.defer do
+          notification['topic'] = 'stream'
+          notification['name'] = 'extraction'
+          self::notify(opts,'stream','extraction',notification.to_json)
+        end
       end
-      if receiving && !receiving.empty?
+      if topic == 'activity' && event_name == 'receiving' && receiving && !receiving.empty?
         fname = File.join(log_dir,instance + '_' + event["id:id"] + '.probe')
         dname = File.join(log_dir,instance + '.data.json')
 
@@ -329,8 +337,15 @@ module CPEE
               f << {'event' => te}.to_yaml
             end
           end
+          notification['datastream'] = te['stream:datastream']
+          EM.defer do
+            notification['topic'] = 'stream'
+            notification['name'] = 'extraction'
+            self::notify(opts,'stream','extraction',notification.to_json)
+          end
         end
-
+      end
+      if receiving && !receiving.empty?
         event["raw"] = receiving
       end
       event["time:timestamp"]= event['cpee:timestamp'] || Time.now.strftime("%Y-%m-%dT%H:%M:%S.%L%:z")
