@@ -332,7 +332,7 @@ module CPEE
             end
           end
           if te['stream:datastream']
-            te["cpee:lifecycle:transition"] = "sensor/stream"
+            te["cpee:lifecycle:transition"] = "stream/data"
             File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
               f << {'event' => te}.to_yaml
             end
