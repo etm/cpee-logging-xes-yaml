@@ -241,7 +241,7 @@ module CPEE
 
         event["raw"] = receiving
       end
-      event["time:timestamp"]= event['cpee:timestamp'] || Time.now.strftime("%Y-%m-%dT%H:%M:%S.%L%:z")
+      event["time:timestamp"]= notification['timestamp'] || Time.now.strftime("%Y-%m-%dT%H:%M:%S.%L%:z")
       File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
         f << {'event' => event}.to_yaml
       end
