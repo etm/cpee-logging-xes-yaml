@@ -1,4 +1,21 @@
+# This file is part of CPEE-LOGGING-XES-YAML.
+#
+# CPEE-LOGGING-XES-YAML is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# CPEE-LOGGING-XES-YAML is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for
+# more details.
+#
+# You should have received a copy of the GNU Lesser General Public License along with
+# CPEE-LOGGING-XES-YAML (file LICENSE in the main directory).  If not, see
+# <http://www.gnu.org/licenses/>.
+
 require 'weel'
+require 'digest/sha1'
 
 class StreamPoint
   attr_accessor :value, :timestamp, :source, :meta
@@ -47,7 +64,7 @@ class Stream
     @values.each do |e|
       if e.is_a? Stream
         e.source = @source if e.source.nil? && !@source.nil?
-        tp << { 'stream:sensorstream' => e.to_list }
+        tp << { 'stream:datastream' => e.to_list }
       elsif e.is_a? StreamPoint
         e.source = @source if e.source.nil? && !@source.nil?
         tp << { 'stream:point' => e.to_h }
@@ -59,6 +76,22 @@ end
 
 module CPEE
   module Logging
+
+    def self::notify(opts,topic,event_name,payload)
+      opts[:subscriptions].each do |e,urls|
+        if e == topic + '/' + event_name
+          urls.each do |url|
+            client = Riddl::Client.new(url)
+            client.post [
+              Riddl::Parameter::Simple::new('type','event'),
+              Riddl::Parameter::Simple::new('topic',topic),
+              Riddl::Parameter::Simple::new('event',event_name),
+              Riddl::Parameter::Complex::new('notification','application/json',payload)
+            ]
+          end
+        end
+      end
+    end
 
     def self::val_merge(target,val,tid,tso)
       if val.is_a? Stream
@@ -74,7 +107,7 @@ module CPEE
           tp.source =  tso
           tp.value = val
         end
-        target << { 'stream:point' => e.to_h }
+        target << { 'stream:point' => tp.to_h }
       end
     end
 
@@ -88,6 +121,40 @@ module CPEE
           end
         end
       end
+    end
+    def self::extract_annotations(where,xml)
+      ret = {}
+      XML::Smart::string(xml) do |doc|
+        doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
+        doc.find('/d:description | //d:call').each do |c|
+          tid = c.attributes['id'] || 'start'
+          fname = where + '_' + tid + '.anno'
+          nset = if tid == 'start'
+            c.find('d:*[starts-with(name(),"_")]')
+          else
+            c.find('d:annotations')
+          end
+          nset.each do |p|
+            anno = p.dump
+            ret[tid] ||= []
+            ret[tid] << anno
+          end
+          if ret[tid]
+            if ret[tid].length > 1
+              ret[tid] = "<annotations xmlns=\"http://cpee.org/ns/description/1.0\">\n" +
+                ret[tid].join("\n") + "\n" +
+                "</annotations>"
+            else
+              ret[tid] = ret[tid][0]
+            end
+            hash = Digest::SHA1.hexdigest(ret[tid])
+            if !File.exists?(fname) || (File.exists?(fname) && File.read(fname) !=  hash)
+              File.write(fname,hash)
+            end
+          end
+        end
+      end
+      ret
     end
 
     def self::extract_result(result)
@@ -133,17 +200,31 @@ module CPEE
       end
       f = File.open(where,'r+')
       f.flock(File::LOCK_EX)
-      json = JSON::load(f).merge(values)
+      json = JSON::load(f) || {}
+      json.merge!(values)
       f.rewind
       f.truncate(0)
       f.write(JSON.generate(json))
       f.close
     end
 
-    def self::doc(topic,event_name,log_dir,template,payload)
+    def self::forward(opts,topic,event_name,payload)
+      if topic == 'state' && event_name == 'change'
+        self::notify(opts,topic,event_name,payload)
+      elsif topic == 'state' && event_name == 'change'
+        self::notify(opts,topic,event_name,payload)
+      elsif topic == 'gateway' && event_name == 'join'
+        self::notify(opts,topic,event_name,payload)
+      end
+    end
+
+    def self::doc(opts,topic,event_name,payload)
       notification = JSON.parse(payload)
       instance = notification['instance-uuid']
       return unless instance
+
+      log_dir = opts[:log_dir]
+      template = opts[:template]
 
       instancenr = notification['instance']
       content = notification['content']
@@ -153,6 +234,19 @@ module CPEE
 
       if content['dslx']
         CPEE::Logging::extract_probes(File.join(log_dir,instance),content['dslx'])
+        CPEE::Logging::extract_annotations(File.join(log_dir,instance),content['dslx']).each do |k,v|
+          so = Marshal.load(Marshal.dump(notification))
+          so['content'].delete('dslx')
+          so['content'].delete('dsl')
+          so['content'].delete('description')
+          so['content']['annotation'] = v
+          so['content']['activity'] = k
+          so['topic'] = 'annotation'
+          so['name'] = 'change'
+          EM.defer do
+            self::notify(opts,'annotation','change',so.to_json)
+          end
+        end
       end
 
       if topic == 'dataelements' && event_name == 'change'
@@ -204,14 +298,20 @@ module CPEE
             doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
             doc.find('//d:probe[d:extractor_type="intrinsic"]').each do |p|
               pid = p.find('string(d:id)')
-              event['stream:sensorstream'] ||= []
+              event['stream:datastream'] ||= []
               val = CPEE::Logging::extract_sensor(rs,p.find('string(d:extractor_code)'),pid,nil) rescue nil
-              CPEE::Logging::val_merge(event['stream:sensorstream'],val,pid,p.find('string(d:source)'))
+              CPEE::Logging::val_merge(event['stream:datastream'],val,pid,p.find('string(d:source)'))
             end
+          end
+          notification['datastream'] = event['stream:datastream']
+          EM.defer do
+            notification['topic'] = 'stream'
+            notification['name'] = 'extraction'
+            self::notify(opts,'stream','extraction',notification.to_json)
           end
         end
       end
-      if receiving && !receiving.empty?
+      if topic == 'activity' && event_name == 'receiving' && receiving && !receiving.empty?
         fname = File.join(log_dir,instance + '_' + event["id:id"] + '.probe')
         dname = File.join(log_dir,instance + '.data.json')
 
@@ -225,20 +325,27 @@ module CPEE
               rc = CPEE::Logging::extract_result(receiving)
               doc.find('//d:probe[d:extractor_type="extrinsic"]').each do |p|
                 pid = p.find('string(d:id)')
-                te['stream:sensorstream'] ||= []
+                te['stream:datastream'] ||= []
                 val = CPEE::Logging::extract_sensor(rs,p.find('string(d:extractor_code)'),pid,rc) rescue nil
-                CPEE::Logging::val_merge(te['stream:sensorstream'],val,pid,p.find('string(d:source)'))
+                CPEE::Logging::val_merge(te['stream:datastream'],val,pid,p.find('string(d:source)'))
               end
             end
           end
-          if te['stream:sensorstream']
-            te["cpee:lifecycle:transition"] = "sensor/stream"
+          if te['stream:datastream']
+            te["cpee:lifecycle:transition"] = "stream/data"
             File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
               f << {'event' => te}.to_yaml
             end
+            notification['datastream'] = te['stream:datastream']
+            EM.defer do
+              notification['topic'] = 'stream'
+              notification['name'] = 'extraction'
+              self::notify(opts,'stream','extraction',notification.to_json)
+            end
           end
         end
-
+      end
+      if receiving && !receiving.empty?
         event["raw"] = receiving
       end
       event["time:timestamp"]= notification['timestamp'] || Time.now.strftime("%Y-%m-%dT%H:%M:%S.%L%:z")

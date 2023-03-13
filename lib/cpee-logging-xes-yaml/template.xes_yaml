@@ -1,7 +1,7 @@
 ---
 log:
   namespaces:
-    stream: https://cpee.org/sensorstream/
+    stream: https://cpee.org/datastream/
     ssn: http://www.w3.org/ns/ssn/
     sosa: http://www.w3.org/ns/sosa/
   xes:
@@ -13,7 +13,7 @@ log:
     id: http://www.xes-standard.org/identity.xesext
     lifecycle: http://www.xes-standard.org/lifecycle.xesext
     cpee: http://cpee.org/cpee.xesext
-    stream: https://cpee.org/sensorstream/sensorstream.xesext
+    stream: https://cpee.org/datastream/datastream.xesext
   global:
     trace:
       concept:name: __INVALID__

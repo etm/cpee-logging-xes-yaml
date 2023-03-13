@@ -1,4 +1,21 @@
 #!/usr/bin/ruby
+#
+# This file is part of CPEE-LOGGING-XES-YAML.
+#
+# CPEE-LOGGING-XES-YAML is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# CPEE-LOGGING-XES-YAML is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for
+# more details.
+#
+# You should have received a copy of the GNU Lesser General Public License along with
+# CPEE-LOGGING-XES-YAML (file LICENSE in the main directory).  If not, see
+# <http://www.gnu.org/licenses/>.
+
 curpath = __dir__
 require 'rubygems'
 require 'optparse'
@@ -36,7 +53,7 @@ def follow(fname,io,copy,deep=0)
       puts " " * deep + name + " (#{File.basename(fname,'.xes.yaml')}) - #{e.dig('log','trace','concept:name')}"
     end
     if e.dig('event','cpee:lifecycle:transition') == 'task/instantiation'
-      base = e.dig('event','data','data_receiver')
+      base = e.dig('event','raw')
       val = base.dig('CPEE-INSTANCE') rescue nil
       if val.nil?
         val = File.basename(base)

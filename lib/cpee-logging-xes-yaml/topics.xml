@@ -16,23 +16,21 @@
   <http://www.gnu.org/licenses/>.
 -->
 
-<declaration xmlns="http://riddl.org/ns/declaration/1.0" xmlns:xi="http://www.w3.org/2001/XInclude">
-  <interface name="events">
-    <xi:include href="http://www.riddl.org/ns/common-patterns/notifications-consumer/2.0/consumer.xml"/>
-  </interface>
-  <interface name="notifications">
-    <xi:include href="http://www.riddl.org/ns/common-patterns/notifications-producer/2.0/producer.xml"/>
-  </interface>
-
-  <facade>
-    <tile>
-      <layer name="events">
-        <apply-to>/</apply-to>
-      </layer>
-      <layer name="notifications">
-        <apply-to>/</apply-to>
-        <block method="sse">/notifications/subscriptions/{}/sse</block>
-      </layer>
-    </tile>
-  </facade>
-</declaration>
+<topics xmlns='http://riddl.org/ns/common-patterns/notifications-producer/2.0'>
+  <topic id='annotation'>
+    <event>change</event>
+  </topic>
+  <topic id='stream'>
+    <event>extraction</event>
+  </topic>
+  <topic id='gateway'>
+    <event>decide</event>
+    <event>join</event>
+  </topic>
+  <topic id='state'>
+    <event>change</event>
+  </topic>
+  <topic id='task'>
+    <event>instantiation</event>
+  </topic>
+</topics>
