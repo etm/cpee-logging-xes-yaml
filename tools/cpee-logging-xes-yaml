@@ -44,13 +44,18 @@ def wrap(s, width=78, indent=18, extra_indent=4)
 end
 
 def follow(fname,io,copy,deep=0)
+  tname = if fname =~ /\.xes\.shift\.yaml/
+    File.basename(fname,'.xes.shift.yaml')
+  elsif fname =~ /\.xes\.yaml/
+    File.basename(fname,'.xes.yaml')
+  end
   if copy
-    File.write(File.basename(fname,'.xes.yaml') + '.xes.shift.yaml',io.read)
+    File.write(tname + '.xes.shift.yaml',io.read)
     io.rewind
   end
   YAML.load_stream(io) do |e|
     if name = e.dig('log','trace','cpee:name')
-      puts " " * deep + name + " (#{File.basename(fname,'.xes.shift.yaml')}) - #{e.dig('log','trace','concept:name')}"
+      puts " " * deep + name + " (#{tname}) - #{e.dig('log','trace','concept:name')}"
     end
     if e.dig('event','cpee:lifecycle:transition') == 'task/instantiation'
       base = e.dig('event','raw')
