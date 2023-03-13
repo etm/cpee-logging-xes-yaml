@@ -65,7 +65,7 @@ def follow(fname,io,copy,deep=0)
       end
       uuid = base.dig('CPEE-INSTANCE-UUID') rescue nil
       if uuid
-        react File.dirname(fname) + "/#{uuid}.xes.shift.yaml",copy,deep + 2
+        react File.dirname(fname) + "/#{uuid}.xes.yaml",copy,deep + 2
       end
     end
   end

@@ -243,7 +243,9 @@ module CPEE
           so['content']['activity'] = k
           so['topic'] = 'annotation'
           so['name'] = 'change'
-          self::notify(opts,'annotation','change',so.to_json)
+          EM.defer do
+            self::notify(opts,'annotation','change',so.to_json)
+          end
         end
       end
 
@@ -301,9 +303,15 @@ module CPEE
               CPEE::Logging::val_merge(event['stream:datastream'],val,pid,p.find('string(d:source)'))
             end
           end
+          notification['datastream'] = event['stream:datastream']
+          EM.defer do
+            notification['topic'] = 'stream'
+            notification['name'] = 'extraction'
+            self::notify(opts,'stream','extraction',notification.to_json)
+          end
         end
       end
-      if receiving && !receiving.empty?
+      if topic == 'activity' && event_name == 'receiving' && receiving && !receiving.empty?
         fname = File.join(log_dir,instance + '_' + event["id:id"] + '.probe')
         dname = File.join(log_dir,instance + '.data.json')
 
@@ -324,16 +332,23 @@ module CPEE
             end
           end
           if te['stream:datastream']
-            te["cpee:lifecycle:transition"] = "sensor/stream"
+            te["cpee:lifecycle:transition"] = "stream/data"
             File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
               f << {'event' => te}.to_yaml
             end
+            notification['datastream'] = te['stream:datastream']
+            EM.defer do
+              notification['topic'] = 'stream'
+              notification['name'] = 'extraction'
+              self::notify(opts,'stream','extraction',notification.to_json)
+            end
           end
         end
-
+      end
+      if receiving && !receiving.empty?
         event["raw"] = receiving
       end
-      event["time:timestamp"]= event['cpee:timestamp'] || Time.now.strftime("%Y-%m-%dT%H:%M:%S.%L%:z")
+      event["time:timestamp"]= notification['timestamp'] || Time.now.strftime("%Y-%m-%dT%H:%M:%S.%L%:z")
       File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
         f << {'event' => event}.to_yaml
       end
