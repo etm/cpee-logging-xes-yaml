@@ -84,7 +84,7 @@ def react(name,copy=false,deep=0)
       file.close
       file.unlink
     end
-  elsif File.exists? name
+  elsif File.exist? name
     follow name, File.open(name), copy, deep
   else
     help
@@ -116,7 +116,7 @@ else
 end
 
 if command == 'new'
-  if !File.exists?(dir)
+  if !File.exist?(dir)
     FileUtils.cp_r(File.join(curpath,'..','server'),dir)
     FileUtils.mkdir(File.join(dir,'logs')) rescue nil
   else

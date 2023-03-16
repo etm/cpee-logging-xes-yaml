@@ -148,7 +148,7 @@ module CPEE
               ret[tid] = ret[tid][0]
             end
             hash = Digest::SHA1.hexdigest(ret[tid])
-            if !File.exists?(fname) || (File.exists?(fname) && File.read(fname) !=  hash)
+            if !File.exist?(fname) || (File.exist?(fname) && File.read(fname) !=  hash)
               File.write(fname,hash)
             end
           end
@@ -195,7 +195,7 @@ module CPEE
     end
 
     def self::persist_values(where,values)
-      unless File.exists?(where)
+      unless File.exist?(where)
         File.write(where,'{}')
       end
       f = File.open(where,'r+')
@@ -259,7 +259,7 @@ module CPEE
       log["log"]["trace"]["concept:name"] ||= instancenr
       log["log"]["trace"]["cpee:name"] ||= notification['instance-name'] if notification['instance-name']
       log["log"]["trace"]["cpee:instance"] ||= instance
-      File.open(File.join(log_dir,instance+'.xes.yaml'),'w'){|f| f.puts log.to_yaml} unless File.exists? File.join(log_dir,instance+'.xes.yaml')
+      File.open(File.join(log_dir,instance+'.xes.yaml'),'w'){|f| f.puts log.to_yaml} unless File.exist? File.join(log_dir,instance+'.xes.yaml')
       event = {}
       event["concept:instance"] = instancenr
       event["concept:name"] = content["label"] if content["label"]
@@ -292,8 +292,8 @@ module CPEE
         fname = File.join(log_dir,instance + '_' + event["id:id"] + '.probe')
         dname = File.join(log_dir,instance + '.data.json')
 
-        if File.exists?(fname)
-          rs = WEEL::ReadStructure.new(File.exists?(dname) ? JSON::load(File::open(dname)) : {},{},{})
+        if File.exist?(fname)
+          rs = WEEL::ReadStructure.new(File.exist?(dname) ? JSON::load(File::open(dname)) : {},{},{})
           XML::Smart::open_unprotected(fname) do |doc|
             doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
             doc.find('//d:probe[d:extractor_type="intrinsic"]').each do |p|
@@ -315,10 +315,10 @@ module CPEE
         fname = File.join(log_dir,instance + '_' + event["id:id"] + '.probe')
         dname = File.join(log_dir,instance + '.data.json')
 
-        if File.exists?(fname)
+        if File.exist?(fname)
           te = event.dup
 
-          rs = WEEL::ReadStructure.new(File.exists?(dname) ? JSON::load(File::open(dname)) : {},{},{})
+          rs = WEEL::ReadStructure.new(File.exist?(dname) ? JSON::load(File::open(dname)) : {},{},{})
           XML::Smart::open_unprotected(fname) do |doc|
             doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
             if doc.find('//d:probe/d:extractor_type[.="extrinsic"]').any?
