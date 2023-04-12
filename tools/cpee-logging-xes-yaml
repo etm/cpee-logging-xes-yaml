@@ -50,7 +50,7 @@ def follow(fname,io,copy,deep=0)
     File.basename(fname,'.xes.yaml')
   end
   if copy
-    File.write(tname + '.xes.shift.yaml',io.read)
+    File.write(File.basename(fname),io.read)
     io.rewind
   end
   YAML.load_stream(io) do |e|
