@@ -293,7 +293,7 @@ module CPEE
         dname = File.join(log_dir,instance + '.data.json')
 
         if File.exist?(fname)
-          rs = WEEL::ReadStructure.new(File.exist?(dname) ? JSON::load(File::open(dname)) : {},{},{})
+          rs = WEEL::ReadStructure.new(File.exist?(dname) ? JSON::load(File::open(dname)) : {},{},{},{})
           XML::Smart::open_unprotected(fname) do |doc|
             doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
             doc.find('//d:probe[d:extractor_type="intrinsic"]').each do |p|
@@ -318,7 +318,7 @@ module CPEE
         if File.exist?(fname)
           te = event.dup
 
-          rs = WEEL::ReadStructure.new(File.exist?(dname) ? JSON::load(File::open(dname)) : {},{},{})
+          rs = WEEL::ReadStructure.new(File.exist?(dname) ? JSON::load(File::open(dname)) : {},{},{},{})
           XML::Smart::open_unprotected(fname) do |doc|
             doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
             if doc.find('//d:probe/d:extractor_type[.="extrinsic"]').any?
