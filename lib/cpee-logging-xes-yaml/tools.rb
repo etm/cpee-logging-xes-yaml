@@ -18,10 +18,9 @@ require 'weel'
 require 'digest/sha1'
 
 class StreamPoint
-  attr_accessor :value, :timestamp, :source, :meta
-  attr_reader :id
+  attr_accessor :value, :timestamp, :source, :meta, :id
 
-  def initialize(id)
+  def initialize(id=nil)
     @id = id
     @value = nil
     @timestamp = Time.now
@@ -101,6 +100,7 @@ module CPEE
         tp = nil
         if val.is_a? StreamPoint
           tp = val
+          tp.id = tid if tp.id.nil?
           tp.source = tso if tp.source.nil?
         else
           tp = StreamPoint.new(tid)
