@@ -129,3 +129,74 @@ elsif command == 'copy'
 else
   puts ARGV.options
 end
+#!/bin/ruby
+
+require 'psych'
+require 'xml/smart'
+require 'typhoeus'
+require 'date'
+
+path = ARGV[0]
+if(path =~ /^http.*/) then
+  response = Typhoeus.get(path)
+  if(response.success?())
+    text = response.response_body
+  end
+else
+  text = File.read(File.join(__dir__,path))
+end
+yaml = Psych.load_stream(text)
+changes = []
+
+info = yaml.shift()
+uuid = info.dig('log','trace','cpee:instance')
+yaml.each() do |el|
+  if(el['event']['id:id'] == 'external' && (el.dig('event','cpee:lifecycle:transition') == 'endpoints/change' || el.dig('event','cpee:lifecycle:transition') == 'dataelements/change'|| el.dig('event','cpee:lifecycle:transition') == 'description/change'))
+    changes.push(el)
+  end
+end
+#puts "found #{changes.size()} changes"
+
+changes.sort!() {|a,b| DateTime.strptime(a.dig('event','time:timestamp'),'%Y-%m-%dT%H:%M:%S.%L%:z') <=> DateTime.strptime(b.dig('event','time:timestamp'),'%Y-%m-%dT%H:%M:%S.%L%:z')}
+#p changes.map() {|el| el.dig('event','time:timestamp')}
+
+de = ep = desc = nil
+counter = 0
+changes.each() do |change|
+  if(change.dig('event','cpee:lifecycle:transition') == 'dataelements/change') then
+    de = change.dig('event','data')
+  end
+  if(change.dig('event','cpee:lifecycle:transition') == 'endpoints/change') then
+    ep = change.dig('event','data')
+  end
+  if(change.dig('event','cpee:lifecycle:transition') == 'description/change') then
+    desc = change.dig('event','cpee:description')
+  end
+  if(change.dig('event','cpee:lifecycle:transition') == 'description/change' || change.dig('event','cpee:lifecycle:transition') == 'endpoints/change') then
+    xml = XML::Smart.string('<testset xmlns="http://cpee.org/ns/properties/2.0"><executionhandler>ruby</executionhandler></testset>')
+    dataelements = xml.root().add('dataelements')
+    endpoints = xml.root().add('endpoints')
+    description = xml.root().add('description').add(XML::Smart.string('<description xmlns="http://cpee.org/ns/description/1.0"/>').root())
+    if(!de.nil?()) then
+      de.each() do |d|
+        dataelements.add(d['name'],d['value'])
+      end
+    end
+    if(!ep.nil?()) then
+      ep.each() do |e|
+        endpoints.add(e['name'],e['value'])
+      end
+    end
+    if(!desc.nil?()) then
+      description.replace_by(XML::Smart.string(desc).root())
+    end
+    #puts xml.to_s
+    dirname = File.join(__dir__,uuid)
+    filename = File.join(dirname,"#{uuid}_#{counter}.xml")
+    if(!Dir.exist?(dirname)) then
+      Dir.mkdir(dirname)
+    end
+    File.write(filename, xml.to_s())
+    counter += 1
+  end
+end
