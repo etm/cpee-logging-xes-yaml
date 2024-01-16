@@ -24,8 +24,10 @@ require 'xml/smart'
 require 'yaml'
 require 'typhoeus'
 require 'stringio'
+require 'typhoeus'
+require 'date'
 
-def wrap(s, width=78, indent=18, extra_indent=4)
+def wrap(s, width=78, indent=19, extra_indent=4)
 	lines = []
 	line, s = s[0..indent-2], s[indent..-1]
   s.split(/\n/).each do |ss|
@@ -91,20 +93,69 @@ def react(name,copy=false,deep=0)
   end
 end
 
+def extract(path)
+  if path =~ /^http.*/
+    response = Typhoeus.get(path)
+    if response.success?
+      text = response.response_body
+    end
+  else
+    text = File.read(File.join(__dir__,path))
+  end
+  yaml = Psych.load_stream(text)
+  changes = []
+
+  info = yaml.shift()
+  uuid = info.dig('log','trace','cpee:instance')
+  yaml.each() do |el|
+    if(el['event']['id:id'] == 'external' && (el.dig('event','cpee:lifecycle:transition') == 'endpoints/change' || el.dig('event','cpee:lifecycle:transition') == 'dataelements/change'|| el.dig('event','cpee:lifecycle:transition') == 'description/change'))
+      changes.push(el)
+    end
+  end
+  #puts "found #{changes.size()} changes"
+
+  changes.sort!() {|a,b| DateTime.strptime(a.dig('event','time:timestamp'),'%Y-%m-%dT%H:%M:%S.%L%:z') <=> DateTime.strptime(b.dig('event','time:timestamp'),'%Y-%m-%dT%H:%M:%S.%L%:z')}
+  #p changes.map() {|el| el.dig('event','time:timestamp')}
+
+  de = ep = desc = nil
+  counter = 0
+  changes.each() do |change|
+    if(change.dig('event','cpee:lifecycle:transition') == 'dataelements/change') then
+      de = change.dig('event','data')
+    end
+    if(change.dig('event','cpee:lifecycle:transition') == 'endpoints/change') then
+      ep = change.dig('event','data')
+    end
+    if(change.dig('event','cpee:lifecycle:transition') == 'description/change') then
+      desc = change.dig('event','cpee:description')
+    end
+    if(change.dig('event','cpee:lifecycle:transition') == 'description/change' || change.dig('event','cpee:lifecycle:transition') == 'endpoints/change') then
+      yield uuid, de, ep, desc, counter if block_given?
+      counter += 1
+    end
+  end
+
+  [de, ep, desc]
+end
+
 exname = File.basename($0)
 
 ARGV.options { |opt|
   opt.summary_indent = ' ' * 2
-  opt.summary_width = 15
+  opt.summary_width = 16
   opt.banner = "Usage:\n#{opt.summary_indent}#{exname} new [DIR] | view [URI] | copy [URI]\n"
   opt.on("Options:")
   opt.on("--help", "-h", "This text") { puts opt; exit }
 	opt.on("")
-  opt.on(wrap("new [DIR]         scaffolds a sample logging service. Add a handler to a cpee instance to experience the pleasure.",78,18,0))
+  opt.on(wrap("new [DIR]          scaffolds a sample logging service. Add a handler to a cpee instance to experience the pleasure."))
 	opt.on("")
-  opt.on(wrap("view [DIR]        view the dependencies between processes and subprocesses.\nWorks for local and remote logs. Examples:\n#{exname} view https://cpee.org/log/123.xes.yaml\n#{exname} view https://cpee.org/log/a.xes.yaml > index.txt\n#{exname} view ~/log/logs/456.xes.yaml"))
+  opt.on(wrap("view [DIR]         view the dependencies between processes and subprocesses. Works for local and remote logs. Examples:\n#{exname} view https://cpee.org/log/123.xes.yaml\n#{exname} view https://cpee.org/log/a.xes.yaml > index.txt\n#{exname} view ~/log/logs/456.xes.yaml"))
 	opt.on("")
-  opt.on(wrap("copy [DIR]        copy dependent processes and subprocesses to the current\ndirectory. Works for local and remote logs. Examples:\n#{exname} copy https://cpee.org/log/123.xes.yaml\n#{exname} copy ~/log/logs/456.xes.yaml"))
+  opt.on(wrap("copy [DIR]         copy dependent processes and subprocesses to the current directory. Works for local and remote logs. Examples:\n#{exname} copy https://cpee.org/log/123.xes.yaml\n#{exname} copy ~/log/logs/456.xes.yaml"))
+	opt.on("")
+  opt.on(wrap("extract-all [LOG]  extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write logs to files in folder named like the instance uuid contained in the log. Examples:\n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
+	opt.on("")
+  opt.on(wrap("extract-last [LOG] extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write last revision of the model to stdout. Examples:\n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
   opt.parse!
 }
 if (ARGV.length != 2)
@@ -112,91 +163,66 @@ if (ARGV.length != 2)
   exit
 else
   command = ARGV[0]
-  dir = ARGV[1]
+  path = ARGV[1]
 end
 
 if command == 'new'
-  if !File.exist?(dir)
-    FileUtils.cp_r(File.join(curpath,'..','server'),dir)
-    FileUtils.mkdir(File.join(dir,'logs')) rescue nil
+  if !File.exist?(path)
+    FileUtils.cp_r(File.join(curpath,'..','server'),path)
+    FileUtils.mkdir(File.join(path,'logs')) rescue nil
   else
     puts 'Directory already exists.'
   end
 elsif command == 'view'
-  react dir, false
+  react path, false
 elsif command == 'copy'
-  react dir, true
-else
-  puts ARGV.options
-end
-#!/bin/ruby
-
-require 'psych'
-require 'xml/smart'
-require 'typhoeus'
-require 'date'
-
-path = ARGV[0]
-if(path =~ /^http.*/) then
-  response = Typhoeus.get(path)
-  if(response.success?())
-    text = response.response_body
-  end
-else
-  text = File.read(File.join(__dir__,path))
-end
-yaml = Psych.load_stream(text)
-changes = []
-
-info = yaml.shift()
-uuid = info.dig('log','trace','cpee:instance')
-yaml.each() do |el|
-  if(el['event']['id:id'] == 'external' && (el.dig('event','cpee:lifecycle:transition') == 'endpoints/change' || el.dig('event','cpee:lifecycle:transition') == 'dataelements/change'|| el.dig('event','cpee:lifecycle:transition') == 'description/change'))
-    changes.push(el)
-  end
-end
-#puts "found #{changes.size()} changes"
-
-changes.sort!() {|a,b| DateTime.strptime(a.dig('event','time:timestamp'),'%Y-%m-%dT%H:%M:%S.%L%:z') <=> DateTime.strptime(b.dig('event','time:timestamp'),'%Y-%m-%dT%H:%M:%S.%L%:z')}
-#p changes.map() {|el| el.dig('event','time:timestamp')}
-
-de = ep = desc = nil
-counter = 0
-changes.each() do |change|
-  if(change.dig('event','cpee:lifecycle:transition') == 'dataelements/change') then
-    de = change.dig('event','data')
-  end
-  if(change.dig('event','cpee:lifecycle:transition') == 'endpoints/change') then
-    ep = change.dig('event','data')
-  end
-  if(change.dig('event','cpee:lifecycle:transition') == 'description/change') then
-    desc = change.dig('event','cpee:description')
-  end
-  if(change.dig('event','cpee:lifecycle:transition') == 'description/change' || change.dig('event','cpee:lifecycle:transition') == 'endpoints/change') then
+  react path, true
+elsif command == 'extract-all'
+  extract(path) do |uuid, de, ep, desc, version|
     xml = XML::Smart.string('<testset xmlns="http://cpee.org/ns/properties/2.0"><executionhandler>ruby</executionhandler></testset>')
     dataelements = xml.root().add('dataelements')
     endpoints = xml.root().add('endpoints')
     description = xml.root().add('description').add(XML::Smart.string('<description xmlns="http://cpee.org/ns/description/1.0"/>').root())
-    if(!de.nil?()) then
-      de.each() do |d|
+    unless de.nil?
+      de.each do |d|
         dataelements.add(d['name'],d['value'])
       end
     end
-    if(!ep.nil?()) then
-      ep.each() do |e|
+    unless ep.nil?
+      ep.each do |e|
         endpoints.add(e['name'],e['value'])
       end
     end
-    if(!desc.nil?()) then
+    unless desc.nil?
       description.replace_by(XML::Smart.string(desc).root())
     end
-    #puts xml.to_s
     dirname = File.join(__dir__,uuid)
-    filename = File.join(dirname,"#{uuid}_#{counter}.xml")
-    if(!Dir.exist?(dirname)) then
-      Dir.mkdir(dirname)
-    end
+    filename = File.join(dirname,"#{uuid}_#{version}.xml")
+    Dir.mkdir(dirname) unless Dir.exist?(dirname)
     File.write(filename, xml.to_s())
-    counter += 1
   end
+elsif command == 'extract-last'
+  de, ep, desc = extract(path)
+
+  xml = XML::Smart.string('<testset xmlns="http://cpee.org/ns/properties/2.0"><executionhandler>ruby</executionhandler></testset>')
+  dataelements = xml.root().add('dataelements')
+  endpoints = xml.root().add('endpoints')
+  description = xml.root().add('description').add(XML::Smart.string('<description xmlns="http://cpee.org/ns/description/1.0"/>').root())
+  unless de.nil?
+    de.each do |d|
+      dataelements.add(d['name'],d['value'])
+    end
+  end
+  unless ep.nil?
+    ep.each do |e|
+      endpoints.add(e['name'],e['value'])
+    end
+  end
+  unless desc.nil?
+    description.replace_by(XML::Smart.string(desc).root())
+  end
+
+  puts xml.to_s
+else
+  puts ARGV.options
 end
