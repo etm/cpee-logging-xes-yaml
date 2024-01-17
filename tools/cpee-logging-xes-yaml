@@ -16,7 +16,6 @@
 # CPEE-LOGGING-XES-YAML (file LICENSE in the main directory).  If not, see
 # <http://www.gnu.org/licenses/>.
 
-curpath = __dir__
 require 'rubygems'
 require 'optparse'
 require 'fileutils'
@@ -27,16 +26,18 @@ require 'stringio'
 require 'typhoeus'
 require 'date'
 
-def wrap(s, width=78, indent=19, extra_indent=4)
+def wrap(s, width=78, indent=19, extra_indent=2)
 	lines = []
-	line, s = s[0..indent-2], s[indent..-1]
-  s.split(/\n/).each do |ss|
-    ss.split(/[ \t]+/).each do |word|
+	line, s = s[0..indent-1], s[indent..-1]
+  s.split(/\n/).each_with_index do |ss,i|
+    ss.split(/[ \t]+/).each_with_index do |word,j|
       if line.size + word.size >= width
         lines << line
-        line = (" " * (indent + extra_indent)) + word
+        line = (" " * (indent)) + word
       else
-        line << " " << word
+        line << " " if i > 0 || j != 0
+        line << (" " * (extra_indent)) if i > 0 && j == 0
+        line << word
       end
     end
     lines << line if line
@@ -100,7 +101,7 @@ def extract(path)
       text = response.response_body
     end
   else
-    text = File.read(File.join(__dir__,path))
+    text = File.read(path)
   end
   yaml = Psych.load_stream(text)
   changes = []
@@ -147,13 +148,16 @@ ARGV.options { |opt|
   opt.on("Options:")
   opt.on("--help", "-h", "This text") { puts opt; exit }
 	opt.on("")
+  opt.on(wrap("\"#{exname}\" will be call \"c\" in the examples for each command."))
+  exname = 'c'
+	opt.on("")
   opt.on(wrap("new [DIR]          scaffolds a sample logging service. Add a handler to a cpee instance to experience the pleasure."))
 	opt.on("")
   opt.on(wrap("view [DIR]         view the dependencies between processes and subprocesses. Works for local and remote logs. Examples:\n#{exname} view https://cpee.org/log/123.xes.yaml\n#{exname} view https://cpee.org/log/a.xes.yaml > index.txt\n#{exname} view ~/log/logs/456.xes.yaml"))
 	opt.on("")
-  opt.on(wrap("copy [DIR]         copy dependent processes and subprocesses to the current directory. Works for local and remote logs. Examples:\n#{exname} copy https://cpee.org/log/123.xes.yaml\n#{exname} copy ~/log/logs/456.xes.yaml"))
+  opt.on(wrap("copy [DIR]         copy dependent processes and subprocesses to the current directory. Works for local and remote logs. Examples: \n#{exname} copy https://cpee.org/log/123.xes.yaml\n#{exname} copy ~/log/logs/456.xes.yaml"))
 	opt.on("")
-  opt.on(wrap("extract-all [LOG]  extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write logs to files in folder named like the instance uuid contained in the log. Examples:\n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
+  opt.on(wrap("extract-all [LOG]  extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write logs to files in folder named like the instance uuid contained in the log. Examples: \n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
 	opt.on("")
   opt.on(wrap("extract-last [LOG] extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write last revision of the model to stdout. Examples:\n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
   opt.parse!
@@ -168,7 +172,7 @@ end
 
 if command == 'new'
   if !File.exist?(path)
-    FileUtils.cp_r(File.join(curpath,'..','server'),path)
+    FileUtils.cp_r(File.join(__dir__,'..','server'),path)
     FileUtils.mkdir(File.join(path,'logs')) rescue nil
   else
     puts 'Directory already exists.'
@@ -196,7 +200,7 @@ elsif command == 'extract-all'
     unless desc.nil?
       description.replace_by(XML::Smart.string(desc).root())
     end
-    dirname = File.join(__dir__,uuid)
+    dirname = File.join(uuid)
     filename = File.join(dirname,"#{uuid}_#{version}.xml")
     Dir.mkdir(dirname) unless Dir.exist?(dirname)
     File.write(filename, xml.to_s())
