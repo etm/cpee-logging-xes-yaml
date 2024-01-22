@@ -16,7 +16,6 @@
 # CPEE-LOGGING-XES-YAML (file LICENSE in the main directory).  If not, see
 # <http://www.gnu.org/licenses/>.
 
-curpath = __dir__
 require 'rubygems'
 require 'optparse'
 require 'fileutils'
@@ -24,17 +23,23 @@ require 'xml/smart'
 require 'yaml'
 require 'typhoeus'
 require 'stringio'
+require 'typhoeus'
+require 'date'
+require 'msgpack'
+require 'csv'
 
-def wrap(s, width=78, indent=18, extra_indent=4)
+def wrap(s, width=78, indent=19, extra_indent=2)
 	lines = []
-	line, s = s[0..indent-2], s[indent..-1]
-  s.split(/\n/).each do |ss|
-    ss.split(/[ \t]+/).each do |word|
+	line, s = s[0..indent-1], s[indent..-1]
+  s.split(/\n/).each_with_index do |ss,i|
+    ss.split(/[ \t]+/).each_with_index do |word,j|
       if line.size + word.size >= width
         lines << line
-        line = (" " * (indent + extra_indent)) + word
+        line = (" " * (indent)) + word
       else
-        line << " " << word
+        line << " " if i > 0 || j != 0
+        line << (" " * (extra_indent)) if i > 0 && j == 0
+        line << word
       end
     end
     lines << line if line
@@ -91,41 +96,206 @@ def react(name,copy=false,deep=0)
   end
 end
 
+def extract(path)
+  unlink = false
+  if path =~ /^http.*/
+    unlink = true
+    text = Tempfile.new('extract-model-download')
+    request = Typhoeus::Request.new("www.example.com/huge.iso")
+    request.on_headers do |response|
+      if response.code != 200
+        raise "Request failed"
+      end
+    end
+    request.on_body do |chunk|
+      text.write(chunk)
+    end
+    request.on_complete do |response|
+      text.rewind
+    end
+    request.run
+  else
+    text = File.open(path)
+  end
+  yaml = Psych.load_stream(text)
+  changes = []
+
+  info = yaml.shift
+  uuid = info.dig('log','trace','cpee:instance')
+  yaml.each do |el|
+    if el['event']['id:id'] == 'external' && (el.dig('event','cpee:lifecycle:transition') == 'endpoints/change' || el.dig('event','cpee:lifecycle:transition') == 'dataelements/change'|| el.dig('event','cpee:lifecycle:transition') == 'description/change')
+      changes.push(el)
+    end
+  end
+
+  changes.sort! { |a,b| DateTime.strptime(a.dig('event','time:timestamp'),'%Y-%m-%dT%H:%M:%S.%L%:z') <=> DateTime.strptime(b.dig('event','time:timestamp'),'%Y-%m-%dT%H:%M:%S.%L%:z') }
+
+  de = ep = desc = nil
+  counter = 0
+  changes.each do |change|
+    if change.dig('event','cpee:lifecycle:transition') == 'dataelements/change'
+      de = change.dig('event','data')
+    end
+    if change.dig('event','cpee:lifecycle:transition') == 'endpoints/change'
+      ep = change.dig('event','data')
+    end
+    if change.dig('event','cpee:lifecycle:transition') == 'description/change'
+      desc = change.dig('event','cpee:description')
+    end
+    if change.dig('event','cpee:lifecycle:transition') == 'description/change' || change.dig('event','cpee:lifecycle:transition') == 'endpoints/change'
+      yield uuid, de, ep, desc, counter if block_given?
+      counter += 1
+    end
+  end
+
+  text.close
+  text.unlink if unlink
+
+  [de, ep, desc]
+end
+
 exname = File.basename($0)
 
 ARGV.options { |opt|
   opt.summary_indent = ' ' * 2
-  opt.summary_width = 15
+  opt.summary_width = 16
   opt.banner = "Usage:\n#{opt.summary_indent}#{exname} new [DIR] | view [URI] | copy [URI]\n"
   opt.on("Options:")
   opt.on("--help", "-h", "This text") { puts opt; exit }
 	opt.on("")
-  opt.on(wrap("new [DIR]         scaffolds a sample logging service. Add a handler to a cpee instance to experience the pleasure.",78,18,0))
+  opt.on(wrap("\"#{exname}\" will be call \"c\" in the examples for each command."))
+  exname = 'c'
 	opt.on("")
-  opt.on(wrap("view [DIR]        view the dependencies between processes and subprocesses.\nWorks for local and remote logs. Examples:\n#{exname} view https://cpee.org/log/123.xes.yaml\n#{exname} view https://cpee.org/log/a.xes.yaml > index.txt\n#{exname} view ~/log/logs/456.xes.yaml"))
+  opt.on(wrap("new [DIR]          scaffolds a sample logging service. Add a handler to a cpee instance to experience the pleasure."))
 	opt.on("")
-  opt.on(wrap("copy [DIR]        copy dependent processes and subprocesses to the current\ndirectory. Works for local and remote logs. Examples:\n#{exname} copy https://cpee.org/log/123.xes.yaml\n#{exname} copy ~/log/logs/456.xes.yaml"))
+  opt.on(wrap("view [DIR]         view the dependencies between processes and subprocesses. Works for local and remote logs. Examples:\n#{exname} view https://cpee.org/log/123.xes.yaml\n#{exname} view https://cpee.org/log/a.xes.yaml > index.txt\n#{exname} view ~/log/logs/456.xes.yaml"))
+	opt.on("")
+  opt.on(wrap("copy [DIR]         copy dependent processes and subprocesses to the current directory. Works for local and remote logs. Examples: \n#{exname} copy https://cpee.org/log/123.xes.yaml\n#{exname} copy ~/log/logs/456.xes.yaml"))
+	opt.on("")
+  opt.on(wrap("extract-all [LOG]  extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write logs to files in folder named like the instance uuid contained in the log. Examples: \n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
+	opt.on("")
+  opt.on(wrap("extract-last [LOG] extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write last revision of the model to stdout. Examples:\n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
+	opt.on("")
+  opt.on(wrap("index              for each log file in the current directory create an index file for more efficient parsing."))
   opt.parse!
 }
-if (ARGV.length != 2)
+if (ARGV.length < 1 || ARGV.length > 2)
   puts ARGV.options
   exit
-else
+elsif ARGV.length == 2
   command = ARGV[0]
-  dir = ARGV[1]
+  path = ARGV[1]
+elsif ARGV.length == 1 && ARGV[0].include?(%w{index})
+  command = ARGV[0]
 end
 
 if command == 'new'
-  if !File.exist?(dir)
-    FileUtils.cp_r(File.join(curpath,'..','server'),dir)
-    FileUtils.mkdir(File.join(dir,'logs')) rescue nil
+  if !File.exist?(path)
+    FileUtils.cp_r(File.join(__dir__,'..','server'),path)
+    FileUtils.mkdir(File.join(path,'logs')) rescue nil
   else
     puts 'Directory already exists.'
   end
 elsif command == 'view'
-  react dir, false
+  react path, false
 elsif command == 'copy'
-  react dir, true
+  react path, true
+elsif command == 'extract-all'
+  extract(path) do |uuid, de, ep, desc, version|
+    xml = XML::Smart.string('<testset xmlns="http://cpee.org/ns/properties/2.0"><executionhandler>ruby</executionhandler></testset>')
+    dataelements = xml.root().add('dataelements')
+    endpoints = xml.root().add('endpoints')
+    description = xml.root().add('description').add(XML::Smart.string('<description xmlns="http://cpee.org/ns/description/1.0"/>').root())
+    unless de.nil?
+      de.each do |d|
+        dataelements.add(d['name'],d['value'])
+      end
+    end
+    unless ep.nil?
+      ep.each do |e|
+        endpoints.add(e['name'],e['value'])
+      end
+    end
+    unless desc.nil?
+      description.replace_by(XML::Smart.string(desc).root())
+    end
+    dirname = File.join(uuid)
+    filename = File.join(dirname,"#{uuid}_#{version}.xml")
+    Dir.mkdir(dirname) unless Dir.exist?(dirname)
+    File.write(filename, xml.to_s())
+  end
+elsif command == 'extract-last'
+  de, ep, desc = extract(path)
+
+  xml = XML::Smart.string('<testset xmlns="http://cpee.org/ns/properties/2.0"><executionhandler>ruby</executionhandler></testset>')
+  dataelements = xml.root().add('dataelements')
+  endpoints = xml.root().add('endpoints')
+  description = xml.root().add('description').add(XML::Smart.string('<description xmlns="http://cpee.org/ns/description/1.0"/>').root())
+  unless de.nil?
+    de.each do |d|
+      dataelements.add(d['name'],d['value'])
+    end
+  end
+  unless ep.nil?
+    ep.each do |e|
+      endpoints.add(e['name'],e['value'])
+    end
+  end
+  unless desc.nil?
+    description.replace_by(XML::Smart.string(desc).root())
+  end
+
+  puts xml.to_s
+elsif command == 'index'
+  Dir.glob('*.xes.yaml').each do |f|
+    index = []
+    timestamps = {}
+    io = File.open(f)
+    while not io.eof?
+      start = io.pos
+      docs = io.readline("---\n",chomp: true)
+      doc = YAML::load(docs, permitted_classes: [Time])
+      if doc
+        activity = doc.dig('event','cpee:activity')
+        transition = doc.dig('event','cpee:lifecycle:transition')
+        if activity && activity != 'external' && transition =~ /^(activity\/calling|activity\/receiving|task\/instantiate)/
+          uuid = doc.dig('event','cpee:activity_uuid')
+          transition = case transition
+            when 'activity/calling'
+              timestamps[uuid] = doc.dig('event','time:timestamp').to_s
+              'c'
+            when 'activity/receiving'
+              timestamps[uuid] ||= doc.dig('event','time:timestamp').to_s
+              'r'
+            when 'task/instantiate'
+              'i'
+          end
+          index << { :a => activity.to_s, :u => uuid.to_s, :t => transition.to_s, :s => start.to_i, :l => docs.length.to_i }
+        end
+      end
+    end
+    io.close
+    index.each do |e| # add calling timestamp for all events
+      e[:_] = timestamps[e[:u]].to_s
+    end
+    CSV.open(f + '.index.raw.csv', 'w') do |csv|
+      index.each do |e|
+        csv << e.values
+      end
+    end
+    index.sort_by!{ |a| [a[:_], a[:u], a[:t]] } # sort by timestamp, uuid and lifecycle
+
+    # uuid shortening
+    trans = {}
+    counter = 0
+    timestamps.each{ |k,v| trans[k] = counter; counter += 1 }
+
+    index.each do |e| # remove timestamps and replace uuid
+      e.delete :_
+      e[:u] = trans[e[:u]]
+    end
+    File.write(f + '.index', MessagePack.pack(index))
+  end
 else
   puts ARGV.options
 end
