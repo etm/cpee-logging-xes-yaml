@@ -48,7 +48,7 @@ def wrap(s, width=78, indent=19, extra_indent=2)
 	return lines.join "\n"
 end
 
-def follow(fname,io,copy,deep=0)
+def follow(fname,io,copy,deep=0,index=nil)
   tname = if fname =~ /\.xes\.shift\.yaml/
     File.basename(fname,'.xes.shift.yaml')
   elsif fname =~ /\.xes\.yaml/
@@ -60,7 +60,7 @@ def follow(fname,io,copy,deep=0)
   end
   YAML.load_stream(io) do |e|
     if name = e.dig('log','trace','cpee:name')
-      puts " " * deep + name + " (#{tname}) - #{e.dig('log','trace','concept:name')}"
+      index.write " " * deep + name + " (#{tname}) - #{e.dig('log','trace','concept:name')}\n"
     end
     if e.dig('event','cpee:lifecycle:transition') == 'task/instantiation'
       base = e.dig('event','raw')
@@ -70,13 +70,14 @@ def follow(fname,io,copy,deep=0)
       end
       uuid = base.dig('CPEE-INSTANCE-UUID') rescue nil
       if uuid
-        react File.dirname(fname) + "/#{uuid}.xes.yaml",copy,deep + 2
+        react File.dirname(fname) + "/#{uuid}.xes.yaml", copy, deep + 2, index
       end
     end
   end
 end
 
-def react(name,copy=false,deep=0)
+def react(name,copy=false,deep=0,index=nil)
+  index ||= File.open('index.txt','w')
   if name.nil?
     help
   elsif name =~ /^https?:\/\//
@@ -85,12 +86,12 @@ def react(name,copy=false,deep=0)
       file = Tempfile.new('sic')
       file.write(res.body)
       file.rewind
-      follow name, file, copy, deep
+      follow name, file, copy, deep, index
       file.close
       file.unlink
     end
   elsif File.exist? name
-    follow name, File.open(name), copy, deep
+    follow name, File.open(name), copy, deep, index
   else
     help
   end
@@ -168,24 +169,25 @@ ARGV.options { |opt|
 	opt.on("")
   opt.on(wrap("new [DIR]          scaffolds a sample logging service. Add a handler to a cpee instance to experience the pleasure."))
 	opt.on("")
-  opt.on(wrap("view [DIR]         view the dependencies between processes and subprocesses. Works for local and remote logs. Examples:\n#{exname} view https://cpee.org/log/123.xes.yaml\n#{exname} view https://cpee.org/log/a.xes.yaml > index.txt\n#{exname} view ~/log/logs/456.xes.yaml"))
+  opt.on(wrap("view [LOG]         view the dependencies between processes and subprocesses. Works for local and remote logs. Examples:\n#{exname} view https://cpee.org/log/123.xes.yaml\n#{exname} view https://cpee.org/log/a.xes.yaml > index.txt\n#{exname} view ~/log/logs/456.xes.yaml"))
 	opt.on("")
-  opt.on(wrap("copy [DIR]         copy dependent processes and subprocesses to the current directory. Works for local and remote logs. Examples: \n#{exname} copy https://cpee.org/log/123.xes.yaml\n#{exname} copy ~/log/logs/456.xes.yaml"))
+  opt.on(wrap("copy [LOG]         copy dependent processes and subprocesses to the current directory. Works for local and remote logs. Examples: \n#{exname} copy https://cpee.org/log/123.xes.yaml\n#{exname} copy ~/log/logs/456.xes.yaml"))
 	opt.on("")
   opt.on(wrap("extract-all [LOG]  extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write logs to files in folder named like the instance uuid contained in the log. Examples: \n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
 	opt.on("")
-  opt.on(wrap("extract-last [LOG] extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write last revision of the model to stdout. Examples:\n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
+  opt.on(wrap("extract-last [LOG] extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write last revision of the model to stdout. When called with out [LOG], models for all log files in the current directory are extracted. Examples:\n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
 	opt.on("")
-  opt.on(wrap("index              for each log file in the current directory create an index file for more efficient parsing."))
+  opt.on(wrap("index [LOG]        creates an index for a log file, for more efficient parsing. When called without [LOG], indexes all log files in the current directory. Examples:\n#{exname} index https://cpee.org/log/123.xes.yaml\n#{exname} index ~/log/logs/456.xes.yaml"))
   opt.parse!
 }
+
 if (ARGV.length < 1 || ARGV.length > 2)
   puts ARGV.options
   exit
 elsif ARGV.length == 2
   command = ARGV[0]
   path = ARGV[1]
-elsif ARGV.length == 1 && ARGV[0].include?(%w{index})
+elsif ARGV.length == 1 && %w{index extract-last}.include?(ARGV[0])
   command = ARGV[0]
 end
 
@@ -225,76 +227,78 @@ elsif command == 'extract-all'
     File.write(filename, xml.to_s())
   end
 elsif command == 'extract-last'
-  de, ep, desc = extract(path)
-
-  xml = XML::Smart.string('<testset xmlns="http://cpee.org/ns/properties/2.0"><executionhandler>ruby</executionhandler></testset>')
-  dataelements = xml.root().add('dataelements')
-  endpoints = xml.root().add('endpoints')
-  description = xml.root().add('description').add(XML::Smart.string('<description xmlns="http://cpee.org/ns/description/1.0"/>').root())
-  unless de.nil?
-    de.each do |d|
-      dataelements.add(d['name'],d['value'])
-    end
-  end
-  unless ep.nil?
-    ep.each do |e|
-      endpoints.add(e['name'],e['value'])
-    end
-  end
-  unless desc.nil?
-    description.replace_by(XML::Smart.string(desc).root())
+  path = if path
+    [path]
+  else
+    Dir.glob('*.xes.yaml')
   end
 
-  puts xml.to_s
+  path.each do |f|
+    de, ep, desc = extract(f)
+
+    xml = XML::Smart.string('<testset xmlns="http://cpee.org/ns/properties/2.0"><executionhandler>ruby</executionhandler></testset>')
+    dataelements = xml.root().add('dataelements')
+    endpoints = xml.root().add('endpoints')
+    description = xml.root().add('description').add(XML::Smart.string('<description xmlns="http://cpee.org/ns/description/1.0"/>').root())
+    unless de.nil?
+      de.each do |d|
+        dataelements.add(d['name'],d['value'])
+      end
+    end
+    unless ep.nil?
+      ep.each do |e|
+        endpoints.add(e['name'],e['value'])
+      end
+    end
+    unless desc.nil?
+      description.replace_by(XML::Smart.string(desc).root())
+    end
+
+    File.write(f + '.model', xml.to_s)
+  end
 elsif command == 'index'
-  Dir.glob('*.xes.yaml').each do |f|
+  path = if path
+    [path]
+  else
+    Dir.glob('*.xes.yaml')
+  end
+
+  path.each do |f|
     index = []
-    timestamps = {}
     io = File.open(f)
     while not io.eof?
       start = io.pos
       docs = io.readline("---\n",chomp: true)
       doc = YAML::load(docs, permitted_classes: [Time])
       if doc
-        activity = doc.dig('event','cpee:activity')
         transition = doc.dig('event','cpee:lifecycle:transition')
-        if activity && activity != 'external' && transition =~ /^(activity\/calling|activity\/receiving|task\/instantiate)/
+        if transition =~ /^(activity\/calling|activity\/receiving|task\/instantiation)/
+          endpoint = doc.dig('event','concept:endpoint')
           uuid = doc.dig('event','cpee:activity_uuid')
           transition = case transition
             when 'activity/calling'
-              timestamps[uuid] = doc.dig('event','time:timestamp').to_s
               'c'
             when 'activity/receiving'
-              timestamps[uuid] ||= doc.dig('event','time:timestamp').to_s
               'r'
-            when 'task/instantiate'
+            when 'task/instantiation'
               'i'
           end
-          index << { :a => activity.to_s, :u => uuid.to_s, :t => transition.to_s, :s => start.to_i, :l => docs.length.to_i }
+          index << { :e => endpoint.to_s, :u => uuid.to_s, :t => transition.to_s, :s => start.to_i, :l => docs.length.to_i }
         end
       end
     end
     io.close
-    index.each do |e| # add calling timestamp for all events
-      e[:_] = timestamps[e[:u]].to_s
-    end
-    CSV.open(f + '.index.raw.csv', 'w') do |csv|
+    CSV.open(f + '.index.csv', 'w') do |csv|
       index.each do |e|
         csv << e.values
       end
     end
-    index.sort_by!{ |a| [a[:_], a[:u], a[:t]] } # sort by timestamp, uuid and lifecycle
 
-    # uuid shortening
-    trans = {}
-    counter = 0
-    timestamps.each{ |k,v| trans[k] = counter; counter += 1 }
-
-    index.each do |e| # remove timestamps and replace uuid
-      e.delete :_
-      e[:u] = trans[e[:u]]
+    nindex = index.group_by{ |a| a[:u] }.collect do |k,v|
+      [v[0][:e], v.collect{ |a| [ a[:t], {:s => a[:s], :l => a[:l]} ] } ]
     end
-    File.write(f + '.index', MessagePack.pack(index))
+
+    File.write(f + '.index', MessagePack.pack(nindex))
   end
 else
   puts ARGV.options
