@@ -48,6 +48,74 @@ def wrap(s, width=78, indent=19, extra_indent=2)
 	return lines.join "\n"
 end
 
+TEMPLATE_XES_XML = <<-END
+  <log xmlns="http://www.xes-standard.org/" xes.version="2.0" xes.features="nested-attributes">
+    <string key="creator" value="cpee.org"/>
+    <extension name="Time" prefix="time" uri="http://www.xes-standard.org/time.xesext"/>
+    <extension name="Concept" prefix="concept" uri="http://www.xes-standard.org/concept.xesext"/>
+    <extension name="ID" prefix="id" uri="http://www.xes-standard.org/identity.xesext"/>
+    <extension name="Lifecycle" prefix="lifecycle" uri="http://www.xes-standard.org/lifecycle.xesext"/>
+    <extension name="CPEE" prefix="cpee" uri="http://cpee.org/cpee.xesext"/>
+    <extension name="stream" prefix="stream" uri="https://cpee.org/datastream/datastream.xesext"/>
+    <global scope="trace">
+      <string key="concept:name" value="__INVALID__"/>
+      <string key="cpee:name" value="__INVALID__"/>
+    </global>
+    <global scope="event">
+      <string key="concept:name" value="__INVALID__"/>
+      <string key="concept:instance" value="-1"/>
+      <string key="concept:endpoint" value=""/>
+      <string key="id:id" value=""/>
+      <string key="lifecycle:transition" value="complete" />
+      <string key="cpee:lifecycle:transition" value="activity/calling"/>
+      <date key="time:timestamp" value=""/>
+    </global>
+    <trace/>
+  </log>
+END
+
+def rec_type(it)
+  if (Time.parse(it) rescue nil)
+    'x:date'
+  elsif it.is_a? Float
+    'x:float'
+  elsif it.is_a? Integer
+    'x:int'
+  elsif it.is_a? String
+    'x:string'
+  end
+end
+
+def rec_a_insert(event,node,level=0)
+  event.each do |i|
+    tnode = node
+    # tnode = node.add('x:string', 'key' => 'item')
+    case i
+      when Hash
+        rec_insert(i,tnode,level+1)
+      when Array
+        rec_a_insert(i,tnode,level+1)
+      when String
+        node.add(rec_type(i), 'key' => i, 'value' => i)
+    end
+  end
+end
+
+def rec_insert(event,node,level=0)
+  event.each do |k,v|
+    case v
+      when String
+        node.add(rec_type(v), 'key' => k, 'value' => v)
+      when Array
+        tnode = node.add('x:list', 'key' => k)
+        rec_a_insert(v,tnode,level+1)
+      when Hash
+        tnode = node.add('x:string', 'key' => k)
+        rec_insert(v,tnode)
+    end
+  end
+end
+
 def follow(fname,io,copy,deep=0,index=nil)
   tname = if fname =~ /\.xes\.shift\.yaml/
     File.basename(fname,'.xes.shift.yaml')
@@ -175,9 +243,11 @@ ARGV.options { |opt|
 	opt.on("")
   opt.on(wrap("extract-all [LOG]  extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write logs to files in folder named like the instance uuid contained in the log. Examples: \n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
 	opt.on("")
-  opt.on(wrap("extract-last [LOG] extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write last revision of the model to stdout. When called with out [LOG], models for all log files in the current directory are extracted. Examples:\n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
+  opt.on(wrap("extract-last [LOG] extract cpee testset from cpee xes-yaml log. Works for local and remote logs. When called with out [LOG], models for all log files in the current directory are extracted. Examples:\n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
 	opt.on("")
   opt.on(wrap("index [LOG]        creates an index for a log file, for more efficient parsing. When called without [LOG], indexes all log files in the current directory. Examples:\n#{exname} index https://cpee.org/log/123.xes.yaml\n#{exname} index ~/log/logs/456.xes.yaml"))
+	opt.on("")
+  opt.on(wrap("to-xes-xml [LOG]   convert cpee xes-yaml to xes-xml. Works for local and remote logs. When called with out [LOG], all log files in the current directory are converted. Examples:\n#{exname} to-xes-xml https://cpee.org/log/123.xes.yaml\n#{exname} to-xes-xml ~/log/logs/456.xes.yaml"))
   opt.parse!
 }
 
@@ -187,7 +257,7 @@ if (ARGV.length < 1 || ARGV.length > 2)
 elsif ARGV.length == 2
   command = ARGV[0]
   path = ARGV[1]
-elsif ARGV.length == 1 && %w{index extract-last}.include?(ARGV[0])
+elsif ARGV.length == 1 && %w{index extract-last to-xes-xml}.include?(ARGV[0])
   command = ARGV[0]
 end
 
@@ -299,6 +369,35 @@ elsif command == 'index'
     end
 
     File.write(f + '.index', MessagePack.pack(nindex))
+  end
+elsif command == 'to-xes-xml'
+  path = if path
+    [path]
+  else
+    Dir.glob('*.xes.yaml')
+  end
+
+  path.each do |f|
+    xml = XML::Smart.string(TEMPLATE_XES_XML)
+    xml.register_namespace 'x', 'http://www.xes-standard.org/'
+
+    io = File.open(f)
+    YAML.load_stream(io) do |e|
+      if trace = e.dig('log','trace')
+        trace.each do |t,tv|
+          xml.find('//x:trace').each do |ele|
+            ele.add('x:string', 'key' => t, 'value' => tv)
+          end
+        end
+      end
+      if e.dig('event')
+        xml.find('//x:trace').each do |node|
+          rec_insert(e.dig('event'),node.add('x:event'))
+        end
+      end
+    end
+
+    File.write(File.basename(f,'.xes.yaml') + '.xes.xml', xml.to_s)
   end
 else
   puts ARGV.options
