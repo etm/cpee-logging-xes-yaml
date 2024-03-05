@@ -243,11 +243,11 @@ ARGV.options { |opt|
 	opt.on("")
   opt.on(wrap("extract-all [LOG]  extract cpee testset from cpee xes-yaml log. Works for local and remote logs. Write logs to files in folder named like the instance uuid contained in the log. Examples: \n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
 	opt.on("")
-  opt.on(wrap("extract-last [LOG] extract cpee testset from cpee xes-yaml log. Works for local and remote logs. When called with out [LOG], models for all log files in the current directory are extracted. Examples:\n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
+  opt.on(wrap("extract-last [LOG] extract cpee testset from cpee xes-yaml log. Works for local and remote logs. When called without [LOG], models for all log files in the current directory are extracted. Examples:\n#{exname} extract https://cpee.org/log/123.xes.yaml\n#{exname} extract ~/log/logs/456.xes.yaml"))
 	opt.on("")
   opt.on(wrap("index [LOG]        creates an index for a log file, for more efficient parsing. When called without [LOG], indexes all log files in the current directory. Examples:\n#{exname} index https://cpee.org/log/123.xes.yaml\n#{exname} index ~/log/logs/456.xes.yaml"))
 	opt.on("")
-  opt.on(wrap("to-xes-xml [LOG]   convert cpee xes-yaml to xes-xml. Works for local and remote logs. When called with out [LOG], all log files in the current directory are converted. Examples:\n#{exname} to-xes-xml https://cpee.org/log/123.xes.yaml\n#{exname} to-xes-xml ~/log/logs/456.xes.yaml"))
+  opt.on(wrap("to-xes-xml [LOG]   convert cpee xes-yaml to xes-xml. Works for local and remote logs. When called without [LOG], all log files in the current directory are converted. Examples:\n#{exname} to-xes-xml https://cpee.org/log/123.xes.yaml\n#{exname} to-xes-xml ~/log/logs/456.xes.yaml"))
   opt.parse!
 }
 
