@@ -75,7 +75,7 @@ TEMPLATE_XES_XML = <<-END
 END
 
 def rec_type(it)
-  if t.is_a? String && it =~ /^\d/ && (Time.parse(it) rescue nil)
+  if it.is_a?(String) && it =~ /^\d/ && (Time.parse(it) rescue nil)
     'x:date'
   elsif it.is_a? Float
     'x:float'
