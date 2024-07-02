@@ -170,7 +170,7 @@ def extract(path)
   if path =~ /^http.*/
     unlink = true
     text = Tempfile.new('extract-model-download')
-    request = Typhoeus::Request.new("www.example.com/huge.iso")
+    request = Typhoeus::Request.new(path)
     request.on_headers do |response|
       if response.code != 200
         raise "Request failed"

@@ -23,4 +23,5 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'riddl', '~> 1.0'
   s.add_runtime_dependency 'json', '~> 2.1'
   s.add_runtime_dependency 'cpee', '~> 2.1', '>= 2.1.4'
+  s.add_runtime_dependency 'msgpack', '~> 1.7', '>= 1.7.2'
 end
