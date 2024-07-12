@@ -77,7 +77,7 @@ def follow(fname,io,copy,deep=0,index=nil)
 end
 
 def react(name,copy=false,deep=0,index=nil)
-  index ||= File.open('index.txt','w')
+  index ||= File.open('index.txt','a')
   if name.nil?
     help
   elsif name =~ /^https?:\/\//
