@@ -346,7 +346,7 @@ module CPEE
         end
       end
       if receiving && !receiving.empty?
-        event["raw"] = receiving
+        event["data"] = receiving
       end
       event["time:timestamp"]= notification['timestamp'] || Time.now.strftime("%Y-%m-%dT%H:%M:%S.%L%:z")
       File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
