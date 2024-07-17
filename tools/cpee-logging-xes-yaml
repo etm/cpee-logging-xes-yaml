@@ -89,7 +89,6 @@ end
 def rec_a_insert(event,node,level=0)
   event.each do |i|
     tnode = node
-    # tnode = node.add('x:string', 'key' => 'item')
     case i
       when Hash
         rec_insert(i,tnode,level+1)
@@ -106,6 +105,10 @@ def rec_insert(event,node,level=0)
     case v
       when String
         node.add(rec_type(v), 'key' => k, 'value' => (v.empty? ? "__UNSPECIFIED__" : v))
+      when Integer
+        node.add(rec_type(v), 'key' => k, 'value' => v)
+      when Float
+        node.add(rec_type(v), 'key' => k, 'value' => v)
       when Array
         tnode = node.add('x:list', 'key' => k)
         rec_a_insert(v,tnode,level+1)
