@@ -113,7 +113,7 @@ def rec_insert(event,node,level=0)
         tnode = node.add('x:list', 'key' => k)
         rec_a_insert(v,tnode,level+1)
       when Hash
-        tnode = node.add('x:string', 'key' => k)
+        tnode = node.add('x:list', 'key' => k)
         rec_insert(v,tnode)
     end
   end
