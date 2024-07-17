@@ -96,7 +96,7 @@ def rec_a_insert(event,node,level=0)
       when Array
         rec_a_insert(i,tnode,level+1)
       when String
-        node.add(rec_type(i), 'key' => i, 'value' => i)
+        node.add(rec_type(i), 'key' => i, 'value' => (i.empty? ? "__UNSPECIFIED__" : i))
     end
   end
 end
@@ -105,7 +105,7 @@ def rec_insert(event,node,level=0)
   event.each do |k,v|
     case v
       when String
-        node.add(rec_type(v), 'key' => k, 'value' => v)
+        node.add(rec_type(v), 'key' => k, 'value' => (v.empty? ? "__UNSPECIFIED__" : v))
       when Array
         tnode = node.add('x:list', 'key' => k)
         rec_a_insert(v,tnode,level+1)
