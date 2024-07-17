@@ -16,14 +16,14 @@ log:
     stream: https://cpee.org/datastream/datastream.xesext
   global:
     trace:
-      concept:name: __INVALID__
-      cpee:name: __INVALID__
+      concept:name: __NOTSPECIFIED__
+      cpee:name: __NOTSPECIFIED__
     event:
       concept:instance: -1
-      concept:name: __INVALID__
-      concept:endpoint: ''
-      id:id: ''
-      cpee:uuid: ''
+      concept:name: __NOTSPECIFIED__
+      concept:endpoint: __NOTSPECIFIED__
+      id:id: __NOTSPECIFIED__
+      cpee:uuid: __NOTSPECIFIED__
       lifecycle:transition: complete
       cpee:lifecycle:transition: activity/calling
       time:timestamp: ''

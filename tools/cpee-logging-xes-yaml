@@ -58,24 +58,24 @@ TEMPLATE_XES_XML = <<-END
     <extension name="CPEE" prefix="cpee" uri="http://cpee.org/cpee.xesext"/>
     <extension name="stream" prefix="stream" uri="https://cpee.org/datastream/datastream.xesext"/>
     <global scope="trace">
-      <string key="concept:name" value="__INVALID__"/>
-      <string key="cpee:name" value="__INVALID__"/>
+      <string key="concept:name" value="__NOTSPECIFIED__"/>
+      <string key="cpee:name" value="__NOTSPECIFIED__"/>
     </global>
     <global scope="event">
-      <string key="concept:name" value="__INVALID__"/>
+      <string key="concept:name" value="__NOTSPECIFIED__"/>
       <string key="concept:instance" value="-1"/>
-      <string key="concept:endpoint" value=""/>
-      <string key="id:id" value=""/>
+      <string key="concept:endpoint" value="__NOTSPECIFIED__"/>
+      <string key="id:id" value="__NOTSPECIFIED__"/>
       <string key="lifecycle:transition" value="complete" />
       <string key="cpee:lifecycle:transition" value="activity/calling"/>
-      <date key="time:timestamp" value=""/>
+      <date key="time:timestamp" value="__NOTSPECIFIED__"/>
     </global>
     <trace/>
   </log>
 END
 
 def rec_type(it)
-  if it.is_a?(String) && it =~ /^\d/ && (Time.parse(it) rescue nil)
+  if it.is_a?(String) && it =~ /^[\dT:+.-]+$/ && (Time.parse(it) rescue nil)
     'x:date'
   elsif it.is_a? Float
     'x:float'
