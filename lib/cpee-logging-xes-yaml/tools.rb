@@ -348,7 +348,7 @@ module CPEE
       if receiving && !receiving.empty?
         event["data"] = receiving
       end
-      event["time:timestamp"]= notification['timestamp'] || Time.now.strftime("%Y-%m-%dT%H:%M:%S.%L%:z")
+      event["time:timestamp"]= notification['timestamp'] || Time.now.xmlschema(4)
       File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
         f << {'event' => event}.to_yaml
       end
