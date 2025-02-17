@@ -134,7 +134,7 @@ def follow(fname,io,copy,deep=0,index=nil)
       index.write " " * deep + name + " (#{tname}) - #{e.dig('log','trace','concept:name')}\n"
     end
     if e.dig('event','cpee:lifecycle:transition') == 'task/instantiation'
-      base = e.dig('event','raw')
+      base = e.dig('event','data')
       val = base.dig('CPEE-INSTANCE') rescue nil
       if val.nil?
         val = File.basename(base)
