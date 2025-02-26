@@ -195,14 +195,14 @@ def extract(path)
   info = yaml.shift
   uuid = info.dig('log','trace','cpee:instance')
   yaml.each do |el|
-    if el['event']['id:id'] == 'external' && (el.dig('event','cpee:lifecycle:transition') == 'endpoints/change' || el.dig('event','cpee:lifecycle:transition') == 'dataelements/change'|| el.dig('event','cpee:lifecycle:transition') == 'description/change')
+    if el['event']['id:id'] == 'external' && (el.dig('event','cpee:lifecycle:transition') == 'endpoints/change' || el.dig('event','cpee:lifecycle:transition') == 'attributes/change' || el.dig('event','cpee:lifecycle:transition') == 'dataelements/change'|| el.dig('event','cpee:lifecycle:transition') == 'description/change')
       changes.push(el)
     end
   end
 
   changes.sort! { |a,b| DateTime.strptime(a.dig('event','time:timestamp'),'%Y-%m-%dT%H:%M:%S.%L%:z') <=> DateTime.strptime(b.dig('event','time:timestamp'),'%Y-%m-%dT%H:%M:%S.%L%:z') }
 
-  de = ep = desc = nil
+  de = ep = desc = at = nil
   counter = 0
   changes.each do |change|
     if change.dig('event','cpee:lifecycle:transition') == 'dataelements/change'
@@ -211,11 +211,14 @@ def extract(path)
     if change.dig('event','cpee:lifecycle:transition') == 'endpoints/change'
       ep = change.dig('event','data')
     end
+    if change.dig('event','cpee:lifecycle:transition') == 'attributes/change'
+      at = change.dig('event','data')
+    end
     if change.dig('event','cpee:lifecycle:transition') == 'description/change'
       desc = change.dig('event','cpee:description')
     end
     if change.dig('event','cpee:lifecycle:transition') == 'description/change' || change.dig('event','cpee:lifecycle:transition') == 'endpoints/change'
-      yield uuid, de, ep, desc, counter if block_given?
+      yield uuid, de, ep, desc, at, counter if block_given?
       counter += 1
     end
   end
@@ -223,10 +226,11 @@ def extract(path)
   text.close
   text.unlink if unlink
 
-  [de, ep, desc]
+  [de, ep, desc, at]
 end
 
 exname = File.basename($0)
+attr = {}
 
 ARGV.options { |opt|
   opt.summary_indent = ' ' * 2
@@ -234,6 +238,7 @@ ARGV.options { |opt|
   opt.banner = "Usage:\n#{opt.summary_indent}#{exname} new [DIR] | view [URI] | copy [URI]\n"
   opt.on("Options:")
   opt.on("--help", "-h", "This text") { puts opt; exit }
+  opt.on("--add [STRING]", "-a [STRING]", "Add attribute for extract-all and extract-last. Example: -a 'filter=me'") { |a| x,y = a.split('='); attr[x] = y }
 	opt.on("")
   opt.on(wrap("\"#{exname}\" will be call \"c\" in the examples for each command."))
   exname = 'c'
@@ -260,7 +265,7 @@ if (ARGV.length < 1 || ARGV.length > 2)
 elsif ARGV.length == 2
   command = ARGV[0]
   path = ARGV[1]
-elsif ARGV.length == 1 && %w{index extract-last to-xes-xml}.include?(ARGV[0])
+elsif (ARGV.length == 1 || ARGV.length == 2) && %w{index extract-last to-xes-xml}.include?(ARGV[0])
   command = ARGV[0]
 end
 
@@ -276,7 +281,7 @@ elsif command == 'view'
 elsif command == 'copy'
   react path, true
 elsif command == 'extract-all'
-  extract(path) do |uuid, de, ep, desc, version|
+  extract(path) do |uuid, de, ep, desc, at, version|
     xml = XML::Smart.string('<testset xmlns="http://cpee.org/ns/properties/2.0"><executionhandler>ruby</executionhandler></testset>')
     dataelements = xml.root().add('dataelements')
     endpoints = xml.root().add('endpoints')
@@ -289,6 +294,11 @@ elsif command == 'extract-all'
     unless ep.nil?
       ep.each do |e|
         endpoints.add(e['name'],e['value'])
+      end
+    end
+    unless at.nil?
+      at.each do |e|
+        attributes.add(e['name'],e['value'])
       end
     end
     unless desc.nil?
@@ -307,12 +317,13 @@ elsif command == 'extract-last'
   end
 
   path.each do |f|
-    de, ep, desc = extract(f)
+    de, ep, desc, at = extract(f)
 
     xml = XML::Smart.string('<testset xmlns="http://cpee.org/ns/properties/2.0"><executionhandler>ruby</executionhandler></testset>')
     dataelements = xml.root().add('dataelements')
     endpoints = xml.root().add('endpoints')
     description = xml.root().add('description').add(XML::Smart.string('<description xmlns="http://cpee.org/ns/description/1.0"/>').root())
+    attributes = xml.root().add('attributes')
     unless de.nil?
       de.each do |d|
         dataelements.add(d['name'],d['value'])
@@ -325,6 +336,16 @@ elsif command == 'extract-last'
     end
     unless desc.nil?
       description.replace_by(XML::Smart.string(desc).root())
+    end
+    unless at.nil?
+      attr.each do |k,v|
+        attributes.add(k,v)
+      end
+      at.each do |e|
+        unless attr.keys.include? e['name']
+          attributes.add(e['name'],e['value'])
+        end
+      end
     end
 
     File.write(f + '.model', xml.to_s)
