@@ -286,6 +286,7 @@ elsif command == 'extract-all'
     dataelements = xml.root().add('dataelements')
     endpoints = xml.root().add('endpoints')
     description = xml.root().add('description').add(XML::Smart.string('<description xmlns="http://cpee.org/ns/description/1.0"/>').root())
+    attributes = xml.root().add('attributes')
     unless de.nil?
       de.each do |d|
         dataelements.add(d['name'],d['value'])
@@ -348,7 +349,7 @@ elsif command == 'extract-last'
       end
     end
 
-    File.write(f + '.model', xml.to_s)
+    File.write(File.basename(f) + '.model', xml.to_s)
   end
 elsif command == 'index'
   path = if path
