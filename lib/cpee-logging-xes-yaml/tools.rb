@@ -281,6 +281,8 @@ module CPEE
       event["cpee:lifecycle:transition"] = "#{topic}/#{event_name}"
       event["cpee:state"] = content['state'] if content['state']
       event["cpee:description"] = content['dslx'] if content['dslx']
+      event["cpee:change_uuid"] = content['change_uuid'] if content['change_uuid']
+      event["cpee:exposition"] = content['exposition'] if content['exposition']
       unless parameters["arguments"]&.nil?
         event["data"] = parameters["arguments"]
       end if parameters

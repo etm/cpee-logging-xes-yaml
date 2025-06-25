@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name             = "cpee-logging-xes-yaml"
-  s.version          = "1.3.16"
+  s.version          = "1.3.17"
   s.platform         = Gem::Platform::RUBY
   s.license          = "LGPL-3.0-or-later"
   s.summary          = "Logging for the cloud process execution engine (cpee.org)"
@@ -22,6 +22,6 @@ Gem::Specification.new do |s|
 
   s.add_runtime_dependency 'riddl', '~> 1.0'
   s.add_runtime_dependency 'json', '~> 2.1'
-  s.add_runtime_dependency 'cpee', '~> 2.1', '>= 2.1.4'
+  s.add_runtime_dependency 'cpee', '~> 2.1', '>= 2.1.86'
   s.add_runtime_dependency 'msgpack', '~> 1.7', '>= 1.7.2'
 end
