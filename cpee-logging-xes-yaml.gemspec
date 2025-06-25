@@ -1,13 +1,13 @@
 Gem::Specification.new do |s|
   s.name             = "cpee-logging-xes-yaml"
-  s.version          = "1.3.17"
+  s.version          = "1.3.18"
   s.platform         = Gem::Platform::RUBY
   s.license          = "LGPL-3.0-or-later"
   s.summary          = "Logging for the cloud process execution engine (cpee.org)"
 
   s.description      = "see http://cpee.org"
 
-  s.files            = Dir['{server/**/*,tools/**/*,lib/**/*}'] + %w(LICENSE Rakefile cpee-logging-xes-yaml.gemspec README.md AUTHORS)
+  s.files            = Dir['{server/**/*,tools/*,lib/**/*}'] + %w(LICENSE Rakefile cpee-logging-xes-yaml.gemspec README.md AUTHORS)
   s.require_path     = 'lib'
   s.extra_rdoc_files = ['README.md']
   s.bindir           = 'tools'

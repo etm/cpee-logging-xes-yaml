@@ -271,7 +271,7 @@ module CPEE
       event["cpee:activity_uuid"] = content['activity-uuid'] if content['activity-uuid']
       event["cpee:instance"] = instance
       case event_name
-        when 'receiving', 'change', 'instantiation'
+        when 'receiving', 'change', 'instantiation', 'exposition'
           event["lifecycle:transition"] = "unknown"
         when 'done'
           event["lifecycle:transition"] = "complete"
