@@ -227,6 +227,14 @@ module CPEE
       template = opts[:template]
 
       instancenr = notification['instance']
+      unless File.exist? File.join(log_dir,instance+'.xes.yaml')
+        log = YAML::load(File.read(template))
+        log["log"]["trace"]["concept:name"] ||= instancenr
+        log["log"]["trace"]["cpee:name"] ||= notification['instance-name'] if notification['instance-name']
+        log["log"]["trace"]["cpee:instance"] ||= instance
+        File.open(File.join(log_dir,instance+'.xes.yaml'),'w'){|f| f.puts log.to_yaml}
+      end
+
       content = notification['content']
       activity = content['activity']
       parameters = content['parameters']
@@ -255,11 +263,6 @@ module CPEE
         end
       end
 
-      log = YAML::load(File.read(template))
-      log["log"]["trace"]["concept:name"] ||= instancenr
-      log["log"]["trace"]["cpee:name"] ||= notification['instance-name'] if notification['instance-name']
-      log["log"]["trace"]["cpee:instance"] ||= instance
-      File.open(File.join(log_dir,instance+'.xes.yaml'),'w'){|f| f.puts log.to_yaml} unless File.exist? File.join(log_dir,instance+'.xes.yaml')
       event = {}
       event["concept:instance"] = instancenr
       event["concept:name"] = content["label"] if content["label"]
