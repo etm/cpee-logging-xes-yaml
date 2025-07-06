@@ -35,6 +35,16 @@ module CPEE
         topic      = @p[1].value
         event_name = @p[2].value
         payload    = @p[3].value.read
+
+        unless File.exist? File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID']+'.xes.yaml')
+          notification = JSON.parse(payload)
+          log = YAML::load(File.read(opts[:template]))
+          log["log"]["trace"]["concept:name"] ||= notification['instance']
+          log["log"]["trace"]["cpee:name"] ||= notification['instance-name'] if notification['instance-name']
+          log["log"]["trace"]["cpee:instance"] ||= notification['instance-uuid']
+          File.open(File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID']+'.xes.yaml'),'w'){|f| f.puts log.to_yaml}
+        end
+
         EM.defer do
           CPEE::Logging::forward opts, topic, event_name, payload
         end if type == 'event'
