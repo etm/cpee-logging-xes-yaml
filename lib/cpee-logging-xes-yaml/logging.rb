@@ -36,12 +36,17 @@ module CPEE
         event_name = @p[2].value
         payload    = @p[3].value.read
 
-        unless File.exist? File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID']+'.xes.yaml')
+        unless File.exist? File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID'] + '.xes.yaml')
           notification = JSON.parse(payload)
           log = YAML::load(File.read(opts[:template]))
-          log["log"]["trace"]["concept:name"] ||= notification['instance']
-          log["log"]["trace"]["cpee:name"] ||= notification['instance-name'] if notification['instance-name']
-          log["log"]["trace"]["cpee:instance"] ||= notification['instance-uuid']
+          log['log']['trace']['concept:name']                    ||= notification['instance']
+          log['log']['trace']['cpee:name']                       ||= notification['instance-name'] if notification['instance-name']
+          log['log']['trace']['cpee:instance']                   ||= notification['instance-uuid']
+          log['log']['trace']['cpee:parent_instance']            ||= notification.dig('content','attributes','parent_instance').to_i       if notification.dig('content','attributes','parent_instance')
+          log['log']['trace']['cpee:parent_instance_uuid']       ||= notification.dig('content','attributes','parent_instance_uuid')       if notification.dig('content','attributes','parent_instance_uuid')
+          log['log']['trace']['cpee:parent_instance_model']      ||= notification.dig('content','attributes','parent_instance_model')      if notification.dig('content','attributes','parent_instance_model')
+          log['log']['trace']['cpee:parent_instance_task_id']    ||= notification.dig('content','attributes','parent_instance_task_id')    if notification.dig('content','attributes','parent_instance_task_id')
+          log['log']['trace']['cpee:parent_instance_task_label'] ||= notification.dig('content','attributes','parent_instance_task_label') if notification.dig('content','attributes','parent_instance_task_label')
           File.open(File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID']+'.xes.yaml'),'w'){|f| f.puts log.to_yaml}
         end
 
@@ -57,7 +62,7 @@ module CPEE
 
     class Overview < Riddl::Implementation #{{{
       def response
-        Riddl::Parameter::Complex.new("overview","text/xml") do
+        Riddl::Parameter::Complex.new('overview','text/xml') do
           <<-END
             <overview xmlns='http://riddl.org/ns/common-patterns/notifications-producer/2.0'>
               <topics/>
