@@ -143,7 +143,7 @@ module CPEE
             if ret[tid].length > 1
               ret[tid] = "<annotations xmlns=\"http://cpee.org/ns/description/1.0\">\n" +
                 ret[tid].join("\n") + "\n" +
-                "</annotations>"
+                '</annotations>'
             else
               ret[tid] = ret[tid][0]
             end
@@ -169,7 +169,7 @@ module CPEE
           YAML::load(res['data']) rescue nil
         elsif res['mimetype'] == 'text/plain'
           t = res['data']
-          if t.start_with?("<?xml version=")
+          if t.start_with?('<?xml version=')
             t = XML::Smart::string(t)
           else
             t = t.to_f if t == t.to_f.to_s
@@ -257,37 +257,37 @@ module CPEE
       end
 
       event = {}
-      event["concept:instance"] = instancenr
-      event["concept:name"] = content["label"] if content["label"]
-      if content["endpoint"]
-        event["concept:endpoint"] = content["endpoint"]
+      event['concept:instance'] = instancenr
+      event['concept:name'] = content['label'] if content['label']
+      if content['endpoint']
+        event['concept:endpoint'] = content['endpoint']
       end
-      event["id:id"] = (activity.nil? || activity == "") ? 'external' : activity
-      event["cpee:activity"] = event["id:id"]
-      event["cpee:activity_uuid"] = content['activity-uuid'] if content['activity-uuid']
-      event["cpee:instance"] = instance
+      event['id:id'] = (activity.nil? || activity == '') ? 'external' : activity
+      event['cpee:activity'] = event['id:id']
+      event['cpee:activity_uuid'] = content['activity-uuid'] if content['activity-uuid']
+      event['cpee:instance'] = instance
       case event_name
         when 'calling'
-          event["lifecycle:transition"] = "start"
+          event['lifecycle:transition'] = 'start'
         when 'done'
-          event["lifecycle:transition"] = "complete"
+          event['lifecycle:transition'] = 'complete'
         else
-          event["lifecycle:transition"] = "unknown"
+          event['lifecycle:transition'] = 'unknown'
       end
-      event["cpee:lifecycle:transition"] = "#{topic}/#{event_name}"
-      event["cpee:state"] = content['state'] if content['state']
-      event["cpee:description"] = content['dslx'] if content['dslx']
-      event["cpee:change_uuid"] = content['change_uuid'] if content['change_uuid']
-      event["cpee:exposition"] = content['exposition'] if content['exposition']
-      unless parameters["arguments"]&.nil?
-        event["data"] = parameters["arguments"]
+      event['cpee:lifecycle:transition'] = "#{topic}/#{event_name}"
+      event['cpee:state'] = content['state'] if content['state']
+      event['cpee:description'] = content['dslx'] if content['dslx']
+      event['cpee:change_uuid'] = content['change_uuid'] if content['change_uuid']
+      event['cpee:exposition'] = content['exposition'] if content['exposition']
+      unless parameters['arguments']&.nil?
+        event['data'] = parameters['arguments']
       end if parameters
       if content['changed']&.any?
-        event["data"] = content['values'].map do |k,v|
+        event['data'] = content['values'].map do |k,v|
           { 'name' => k, 'value' => v }
         end
 
-        fname = File.join(log_dir,instance + '_' + event["id:id"] + '.probe')
+        fname = File.join(log_dir,instance + '_' + event['id:id'] + '.probe')
         dname = File.join(log_dir,instance + '.data.json')
 
         if File.exist?(fname)
@@ -310,7 +310,7 @@ module CPEE
         end
       end
       if topic == 'activity' && event_name == 'receiving' && receiving && !receiving.empty?
-        fname = File.join(log_dir,instance + '_' + event["id:id"] + '.probe')
+        fname = File.join(log_dir,instance + '_' + event['id:id'] + '.probe')
         dname = File.join(log_dir,instance + '.data.json')
 
         if File.exist?(fname)
@@ -330,7 +330,7 @@ module CPEE
             end
           end
           if te['stream:datastream']
-            te["cpee:lifecycle:transition"] = "stream/data"
+            te['cpee:lifecycle:transition'] = 'stream/data'
             File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
               f << {'event' => te}.to_yaml
             end
@@ -344,9 +344,12 @@ module CPEE
         end
       end
       if receiving && !receiving.empty?
-        event["data"] = receiving
+        event['data'] = receiving
       end
-      event["time:timestamp"]= notification['timestamp'] || Time.now.xmlschema(4)
+      if content['data'] && !content['data'].empty?
+        event['data'] = content['data']
+      end
+      event['time:timestamp']= notification['timestamp'] || Time.now.xmlschema(4)
       File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
         f << {'event' => event}.to_yaml
       end
