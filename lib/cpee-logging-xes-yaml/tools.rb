@@ -92,7 +92,7 @@ module CPEE
       end
     end
 
-    def self::val_merge(target,val,tid,tso)
+    def self::merge_val(target,val,tid,tso)
       if val.is_a? Stream
         val.source = tso if val.source.nil?
         target.push *val.to_list
@@ -114,7 +114,7 @@ module CPEE
     def self::extract_probes(where,xml)
       XML::Smart::string(xml) do |doc|
         doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
-        doc.find('//d:call').each do |c|
+        doc.find('//d:call | //d:manipulate').each do |c|
           File.unlink(where + '_' + c.attributes['id'] + '.probe') rescue nil
           c.find('d:annotations/d:_context_data_analysis/d:probes[d:probe]').each do |p|
             File.write(where + '_' + c.attributes['id'] + '.probe', p.dump)
@@ -126,10 +126,10 @@ module CPEE
       ret = {}
       XML::Smart::string(xml) do |doc|
         doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
-        doc.find('/d:description | //d:call').each do |c|
-          tid = c.attributes['id'] || 'start'
+        doc.find('/d:description | //d:call | //d:manipulate').each do |c|
+          tid = c.attributes['id'] || 'complex'
           fname = where + '_' + tid + '.anno'
-          nset = if tid == 'start'
+          nset = if tid == 'complex'
             c.find('d:*[starts-with(name(),"_")]')
           else
             c.find('d:annotations')
@@ -188,7 +188,7 @@ module CPEE
       ret.length == 1 ? ret[0] : ret
     end
 
-    def self::extract_sensor(rs,code,pid,result)
+    def self::extract_val(rs,code,pid,result)
       rs.instance_eval(code,'probe',1)
     rescue => e
       e.backtrace[0].gsub(/(\w+):(\d+):in.*/,'Probe ' + pid + ' Line \2: ') + e.message
@@ -295,10 +295,12 @@ module CPEE
           XML::Smart::open_unprotected(fname) do |doc|
             doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
             doc.find('//d:probe[d:extractor_type="intrinsic"]').each do |p|
-              pid = p.find('string(d:id)')
+              pid    = p.find('string(d:id)')
+              source = p.find('string(d:source)')
+              val = CPEE::Logging::extract_val(rs,p.find('string(d:extractor_code)'),pid,nil) rescue nil
+
               event['stream:datastream'] ||= []
-              val = CPEE::Logging::extract_sensor(rs,p.find('string(d:extractor_code)'),pid,nil) rescue nil
-              CPEE::Logging::val_merge(event['stream:datastream'],val,pid,p.find('string(d:source)'))
+              CPEE::Logging::merge_val(event['stream:datastream'],val,pid,source)
             end
           end
           notification['datastream'] = event['stream:datastream']
@@ -324,8 +326,8 @@ module CPEE
               doc.find('//d:probe[d:extractor_type="extrinsic"]').each do |p|
                 pid = p.find('string(d:id)')
                 te['stream:datastream'] ||= []
-                val = CPEE::Logging::extract_sensor(rs,p.find('string(d:extractor_code)'),pid,rc) rescue nil
-                CPEE::Logging::val_merge(te['stream:datastream'],val,pid,p.find('string(d:source)'))
+                val = CPEE::Logging::extract_val(rs,p.find('string(d:extractor_code)'),pid,rc) rescue nil
+                CPEE::Logging::merge_val(te['stream:datastream'],val,pid,p.find('string(d:source)'))
               end
             end
           end
