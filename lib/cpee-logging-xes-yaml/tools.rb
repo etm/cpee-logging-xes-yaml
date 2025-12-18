@@ -76,6 +76,7 @@ end
 module CPEE
   module Logging
 
+    # Forward event to subscriptions
     def self::notify(opts,topic,event_name,payload)
       opts[:subscriptions].each do |e,urls|
         if e == topic + '/' + event_name
@@ -122,6 +123,7 @@ module CPEE
         end
       end
     end
+
     def self::extract_annotations(where,xml)
       ret = {}
       XML::Smart::string(xml) do |doc|
@@ -290,6 +292,7 @@ module CPEE
         fname = File.join(log_dir,instance + '_' + event['id:id'] + '.probe')
         dname = File.join(log_dir,instance + '.data.json')
 
+        # Handle intrinsic data probes
         if File.exist?(fname)
           rs = WEEL::ReadStructure.new(File.exist?(dname) ? JSON::load(File::open(dname)) : {},{},{},{})
           XML::Smart::open_unprotected(fname) do |doc|
@@ -298,19 +301,24 @@ module CPEE
               pid    = p.find('string(d:id)')
               source = p.find('string(d:source)')
               val = CPEE::Logging::extract_val(rs,p.find('string(d:extractor_code)'),pid,nil) rescue nil
-
               event['stream:datastream'] ||= []
-              CPEE::Logging::merge_val(event['stream:datastream'],val,pid,source)
+              # Do not add datastream entries if the dataprobes return nil
+              if val != nil
+                CPEE::Logging::merge_val(event['stream:datastream'],val,pid,source)
+              end
             end
           end
-          notification['datastream'] = event['stream:datastream']
-          EM.defer do
-            notification['topic'] = 'stream'
-            notification['name'] = 'extraction'
-            self::notify(opts,'stream','extraction',notification.to_json)
+          if event['stream:datastream'] && event['stream:datastream'].any?
+            notification['datastream'] = event['stream:datastream']
+            EM.defer do
+              notification['topic'] = 'stream'
+              notification['name'] = 'extraction'
+              self::notify(opts,'stream','extraction',notification.to_json)
+            end
           end
         end
       end
+      # Handle extrinsic data probes
       if topic == 'activity' && event_name == 'receiving' && receiving && !receiving.empty?
         fname = File.join(log_dir,instance + '_' + event['id:id'] + '.probe')
         dname = File.join(log_dir,instance + '.data.json')
@@ -327,11 +335,14 @@ module CPEE
                 pid = p.find('string(d:id)')
                 te['stream:datastream'] ||= []
                 val = CPEE::Logging::extract_val(rs,p.find('string(d:extractor_code)'),pid,rc) rescue nil
-                CPEE::Logging::merge_val(te['stream:datastream'],val,pid,p.find('string(d:source)'))
+                if not val.nil?
+                  # Do not add datastream entries if the dataprobes return nil
+                  CPEE::Logging::merge_val(te['stream:datastream'],val,pid,p.find('string(d:source)'))
+                end
               end
             end
           end
-          if te['stream:datastream']
+          if te['stream:datastream'] && te['stream:datastream'].any? 
             te['cpee:lifecycle:transition'] = 'stream/data'
             File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
               f << {'event' => te}.to_yaml
