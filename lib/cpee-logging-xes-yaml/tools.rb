@@ -301,9 +301,9 @@ module CPEE
               pid    = p.find('string(d:id)')
               source = p.find('string(d:source)')
               val = CPEE::Logging::extract_val(rs,p.find('string(d:extractor_code)'),pid,nil) rescue nil
-              event['stream:datastream'] ||= []
               # Do not add datastream entries if the dataprobes return nil
               if val != nil
+                event['stream:datastream'] ||= []
                 CPEE::Logging::merge_val(event['stream:datastream'],val,pid,source)
               end
             end
@@ -342,7 +342,7 @@ module CPEE
               end
             end
           end
-          if te['stream:datastream'] && te['stream:datastream'].any? 
+          if te['stream:datastream'] && te['stream:datastream'].any?
             te['cpee:lifecycle:transition'] = 'stream/data'
             File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
               f << {'event' => te}.to_yaml
