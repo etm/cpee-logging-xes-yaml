@@ -209,6 +209,12 @@ module CPEE
       f.write(JSON.generate(json))
       f.close
     end
+    def self::load_values(where)
+      File.open(where,'r') do |f|
+        f.flock(File::LOCK_EX)
+        return JSON::load(f)
+      end
+    end
 
     def self::forward(opts,topic,event_name,payload)
       if topic == 'state' && event_name == 'change'
@@ -294,7 +300,7 @@ module CPEE
 
         # Handle intrinsic data probes
         if File.exist?(fname)
-          rs = WEEL::ReadStructure.new(File.exist?(dname) ? JSON::load(File::open(dname)) : {},{},{},{})
+          rs = WEEL::ReadStructure.new(File.exist?(dname) ? CPEE::Logging::load_values(dname) : {},{},{},{})
           XML::Smart::open_unprotected(fname) do |doc|
             doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
             doc.find('//d:probe[d:extractor_type="intrinsic"]').each do |p|
@@ -326,7 +332,7 @@ module CPEE
         if File.exist?(fname)
           te = event.dup
 
-          rs = WEEL::ReadStructure.new(File.exist?(dname) ? JSON::load(File::open(dname)) : {},{},{},{})
+          rs = WEEL::ReadStructure.new(File.exist?(dname) ? CPEE::Logging::load_values(dname) : {},{},{},{})
           XML::Smart::open_unprotected(fname) do |doc|
             doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
             if doc.find('//d:probe/d:extractor_type[.="extrinsic"]').any?
