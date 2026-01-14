@@ -207,13 +207,16 @@ module CPEE
       f.rewind
       f.truncate(0)
       f.write(JSON.generate(json))
+      f.flock(File::LOCK_UN)
       f.close
     end
     def self::load_values(where)
       File.open(where,'r') do |f|
         f.flock(File::LOCK_EX)
-        return JSON::load(f)
+        ret =  JSON::load(f)
+        f.flock(File::LOCK_UN)
       end
+      ret
     end
 
     def self::forward(opts,topic,event_name,payload)
