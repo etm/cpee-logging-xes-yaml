@@ -211,9 +211,10 @@ module CPEE
       f.close
     end
     def self::load_values(where)
+      ret = nil
       File.open(where,'r') do |f|
         f.flock(File::LOCK_EX)
-        ret =  JSON::load(f)
+        ret = JSON::load(f)
         f.flock(File::LOCK_UN)
       end
       ret
