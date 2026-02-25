@@ -239,9 +239,11 @@ module CPEE
       template = opts[:template]
 
       instancenr = notification['instance']
-
       content = notification['content']
       activity = content['activity']
+      activity = nil if activity == '' || activity&.strip == ''
+      eid = content['eid']
+      eid = nil if eid == '' || eid&.strip == ''
       parameters = content['parameters']
       receiving = content['received']
 
@@ -274,8 +276,8 @@ module CPEE
       if content['endpoint']
         event['concept:endpoint'] = content['endpoint']
       end
-      event['id:id'] = (activity.nil? || activity == '') ? 'external' : activity
-      event['cpee:activity'] = event['id:id']
+      event['id:id'] = (activity.nil? && eid.nil?) ? 'external' : (activity || eid)
+      event['cpee:activity'] = activity.nil? ? 'external' : activity
       event['cpee:activity_uuid'] = content['activity-uuid'] if content['activity-uuid']
       event['cpee:instance'] = instance
       case event_name
