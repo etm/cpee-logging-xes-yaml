@@ -276,8 +276,8 @@ module CPEE
       if content['endpoint']
         event['concept:endpoint'] = content['endpoint']
       end
-      event['id:id'] = (activity.nil? && eid.nil?) ? 'external' : (activity || eid)
-      event['cpee:activity'] = activity.nil? ? 'external' : activity
+      event['id:id'] = (activity.nil? && eid.nil?) ? 'ex-ante' : (activity || eid)
+      event['cpee:activity'] = activity unless activity.nil?
       event['cpee:activity_uuid'] = content['activity-uuid'] if content['activity-uuid']
       event['cpee:instance'] = instance
       case event_name
@@ -293,6 +293,9 @@ module CPEE
       event['cpee:description'] = content['dslx'] if content['dslx']
       event['cpee:change_uuid'] = content['change_uuid'] if content['change_uuid']
       event['cpee:exposition'] = content['exposition'] if content['exposition']
+      if topic == 'gateway' && event_name == 'decide'
+        event['data'] = { 'condition' => content['code'], 'result' => content['condition'] }
+      end
       unless parameters['arguments']&.nil?
         event['data'] = parameters['arguments']
       end if parameters
