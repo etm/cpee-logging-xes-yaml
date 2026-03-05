@@ -48,7 +48,7 @@ def wrap(s, width=78, indent=19, extra_indent=2)
 	return lines.join "\n"
 end
 
-TEMPLATE_XES_XML = <<-END
+TEMPLATE_XES_XML_START = <<-END
   <log xmlns="http://www.xes-standard.org/" xes.version="2.0" xes.features="nested-attributes">
     <string key="creator" value="cpee.org"/>
     <extension name="Time" prefix="time" uri="http://www.xes-standard.org/time.xesext"/>
@@ -70,7 +70,18 @@ TEMPLATE_XES_XML = <<-END
       <string key="cpee:lifecycle:transition" value="activity/calling"/>
       <date key="time:timestamp" value="__NOTSPECIFIED__"/>
     </global>
-    <trace/>
+END
+TEMPLATE_XES_XML_TRC = <<-END
+  <trace xmlns="http://www.xes-standard.org/"/>
+END
+TEMPLATE_XES_XML_EVT = <<-END
+  <event xmlns="http://www.xes-standard.org/"/>
+END
+TEMPLATE_XES_XML_MID = <<-END
+    <trace>
+END
+TEMPLATE_XES_XML_END = <<-END
+    </trace>
   </log>
 END
 
@@ -86,16 +97,27 @@ def rec_type(it)
   end
 end
 
+def format_secs(s)
+  return 'long' if s.infinite?
+  s = s.to_i
+  m = s / 60
+  m < 0 ? "#{s}s" : "#{'%02d' % m}m #{'%02d' % (s%60)}s"
+end
+
 def rec_a_insert(event,node,level=0)
   event.each do |i|
     tnode = node
     case i
       when Hash
+        tnode = node.add('x:list', 'key' => 'element')
         rec_insert(i,tnode,level+1)
       when Array
-        rec_a_insert(i,tnode,level+1)
+        tnode = node.add('x:list', 'key' => 'element')
+        rec_insert(i,tnode,level+1)
       when String
-        node.add(rec_type(i), 'key' => i, 'value' => (i.empty? ? "__UNSPECIFIED__" : i))
+        node.add(rec_type(i), 'key' => 'element', 'value' => (i.empty? ? "__UNSPECIFIED__" : i))
+      when Integer, Float
+        node.add(rec_type(i), 'key' => 'element', 'value' => i)
     end
   end
 end
@@ -240,7 +262,7 @@ ARGV.options { |opt|
   opt.on("--help", "-h", "This text") { puts opt; exit }
   opt.on("--add [STRING]", "-a [STRING]", "Add attribute for extract-all and extract-last. Example: -a 'filter=me'") { |a| x,y = a.split('='); attr[x] = y }
 	opt.on("")
-  opt.on(wrap("\"#{exname}\" will be call \"c\" in the examples for each command."))
+  opt.on(wrap("\"#{exname}\" will be called \"c\" in the examples for each command."))
   exname = 'c'
 	opt.on("")
   opt.on(wrap("new [DIR]          scaffolds a sample logging service. Add a handler to a cpee instance to experience the pleasure."))
@@ -403,26 +425,41 @@ elsif command == 'to-xes-xml'
   end
 
   path.each do |f|
-    xml = XML::Smart.string(TEMPLATE_XES_XML)
-    xml.register_namespace 'x', 'http://www.xes-standard.org/'
+    fname = File.basename(f,'.xes.yaml') + '.xes.xml'
+    File.write(fname,TEMPLATE_XES_XML_START)
 
     io = File.open(f)
+    count = 1
+    start = Time.now
+    total = `grep -c -e '---' #{f}`.to_f
+    percent = 0
+    duration = 0
     YAML.load_stream(io) do |e|
+      percent = count/total
+      diff = Time.now - start
+      duration = diff/percent
+      print "#{"%0#{Math.log10(total).to_i + 1}d" % count}/#{total.to_i} #{'%05.2f' % (percent*100)}% (#{format_secs(duration-diff)} left)          \r" if (count % 1000) == 0
+      count += 1
       if trace = e.dig('log','trace')
+        xml = XML::Smart.string(TEMPLATE_XES_XML_TRC)
+        xml.register_namespace 'x', 'http://www.xes-standard.org/'
         trace.each do |t,tv|
           xml.find('//x:trace').each do |ele|
             ele.add('x:string', 'key' => t, 'value' => tv)
           end
         end
+        File.write(fname, '    ' + xml.root.dump.gsub(/\n/,"\n    ") + "\n", mode: 'a')
+        File.write(fname, TEMPLATE_XES_XML_MID, mode: 'a')
       end
       if e.dig('event')
-        xml.find('//x:trace').each do |node|
-          rec_insert(e.dig('event'),node.add('x:event'))
-        end
+        xml = XML::Smart.string(TEMPLATE_XES_XML_EVT)
+        xml.register_namespace 'x', 'http://www.xes-standard.org/'
+        rec_insert(e.dig('event'),xml.root)
+        File.write(fname, '      ' + xml.root.dump.gsub(/\n/,"\n      ") + "\n", mode: 'a')
       end
     end
-
-    File.write(File.basename(f,'.xes.yaml') + '.xes.xml', xml.to_s)
+    File.write(fname, TEMPLATE_XES_XML_END, mode: 'a')
+    puts "#{count}/#{total.to_i} 100% (took #{format_secs(duration)})                                         \n"
   end
 else
   puts ARGV.options
