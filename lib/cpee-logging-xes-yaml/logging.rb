@@ -36,19 +36,20 @@ module CPEE
         event_name = @p[2].value
         payload    = @p[3].value.read
 
-        unless File.exist? File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID'] + '.xes.yaml')
-          notification = JSON.parse(payload)
-          log = YAML::load(File.read(opts[:template]))
-          log['log']['trace']['concept:name']                    ||= notification['instance']
-          log['log']['trace']['cpee:name']                       ||= notification['instance-name'] if notification['instance-name']
-          log['log']['trace']['cpee:instance']                   ||= notification['instance-uuid']
-          log['log']['trace']['cpee:parent_instance']            ||= notification.dig('content','attributes','parent_instance').to_i       if notification.dig('content','attributes','parent_instance')
-          log['log']['trace']['cpee:parent_instance_uuid']       ||= notification.dig('content','attributes','parent_instance_uuid')       if notification.dig('content','attributes','parent_instance_uuid')
-          log['log']['trace']['cpee:parent_instance_model']      ||= notification.dig('content','attributes','parent_instance_model')      if notification.dig('content','attributes','parent_instance_model')
-          log['log']['trace']['cpee:parent_instance_task_id']    ||= notification.dig('content','attributes','parent_instance_task_id')    if notification.dig('content','attributes','parent_instance_task_id')
-          log['log']['trace']['cpee:parent_instance_task_label'] ||= notification.dig('content','attributes','parent_instance_task_label') if notification.dig('content','attributes','parent_instance_task_label')
-          File.open(File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID']+'.xes.yaml'),'w'){|f| f.puts log.to_yaml}
-        end
+        ### we do not write headers for now. Or else we can only do per instance sharding.
+        # unless File.exist? File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID'] + '.xes.yaml')
+        #   notification = JSON.parse(payload)
+        #   log = YAML::load(File.read(opts[:template]))
+        #   log['log']['trace']['concept:name']                    ||= notification['instance']
+        #   log['log']['trace']['cpee:name']                       ||= notification['instance-name'] if notification['instance-name']
+        #   log['log']['trace']['cpee:instance']                   ||= notification['instance-uuid']
+        #   log['log']['trace']['cpee:parent_instance']            ||= notification.dig('content','attributes','parent_instance').to_i       if notification.dig('content','attributes','parent_instance')
+        #   log['log']['trace']['cpee:parent_instance_uuid']       ||= notification.dig('content','attributes','parent_instance_uuid')       if notification.dig('content','attributes','parent_instance_uuid')
+        #   log['log']['trace']['cpee:parent_instance_model']      ||= notification.dig('content','attributes','parent_instance_model')      if notification.dig('content','attributes','parent_instance_model')
+        #   log['log']['trace']['cpee:parent_instance_task_id']    ||= notification.dig('content','attributes','parent_instance_task_id')    if notification.dig('content','attributes','parent_instance_task_id')
+        #   log['log']['trace']['cpee:parent_instance_task_label'] ||= notification.dig('content','attributes','parent_instance_task_label') if notification.dig('content','attributes','parent_instance_task_label')
+        #   File.open(File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID']+'.xes.yaml'),'w'){|f| f.puts log.to_yaml}
+        # end
 
         EM.defer do
           CPEE::Logging::forward opts, topic, event_name, payload
