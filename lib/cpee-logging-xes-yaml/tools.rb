@@ -81,13 +81,15 @@ module CPEE
       opts[:subscriptions].each do |e,urls|
         if e == topic + '/' + event_name
           urls.each do |url|
-            client = Riddl::Client.new(url)
-            client.post [
-              Riddl::Parameter::Simple::new('type','event'),
-              Riddl::Parameter::Simple::new('topic',topic),
-              Riddl::Parameter::Simple::new('event',event_name),
-              Riddl::Parameter::Complex::new('notification','application/json',payload)
-            ]
+            EM.defer do
+              client = Riddl::Client.new(url)
+              client.post [
+                Riddl::Parameter::Simple::new('type','event'),
+                Riddl::Parameter::Simple::new('topic',topic),
+                Riddl::Parameter::Simple::new('event',event_name),
+                Riddl::Parameter::Complex::new('notification','application/json',payload)
+              ]
+            end
           end
         end
       end
@@ -150,7 +152,7 @@ module CPEE
               ret[tid] = ret[tid][0]
             end
             hash = Digest::SHA1.hexdigest(ret[tid])
-            if !File.exist?(fname) || (File.exist?(fname) && File.read(fname) !=  hash)
+            if !File.exist?(fname) || File.read(fname) !=  hash
               File.write(fname,hash)
             end
           end
@@ -213,7 +215,7 @@ module CPEE
     def self::load_values(where)
       ret = nil
       File.open(where,'r') do |f|
-        f.flock(File::LOCK_EX)
+        f.flock(File::LOCK_SH)
         ret = JSON::load(f)
         f.flock(File::LOCK_UN)
       end
@@ -222,8 +224,6 @@ module CPEE
 
     def self::forward(opts,topic,event_name,payload)
       if topic == 'state' && event_name == 'change'
-        self::notify(opts,topic,event_name,payload)
-      elsif topic == 'state' && event_name == 'change'
         self::notify(opts,topic,event_name,payload)
       elsif topic == 'gateway' && event_name == 'join'
         self::notify(opts,topic,event_name,payload)
@@ -236,7 +236,6 @@ module CPEE
       return unless instance
 
       log_dir = opts[:log_dir]
-      template = opts[:template]
 
       instancenr = notification['instance']
       content = notification['content']
@@ -250,7 +249,7 @@ module CPEE
       if content['dslx']
         CPEE::Logging::extract_probes(File.join(log_dir,instance),content['dslx'])
         CPEE::Logging::extract_annotations(File.join(log_dir,instance),content['dslx']).each do |k,v|
-          so = Marshal.load(Marshal.dump(notification))
+          so = JSON.parse(notification.to_json)
           so['content'].delete('dslx')
           so['content'].delete('dsl')
           so['content'].delete('description')
@@ -324,11 +323,17 @@ module CPEE
             end
           end
           if event['stream:datastream'] && event['stream:datastream'].any?
-            notification['datastream'] = event['stream:datastream']
             EM.defer do
-              notification['topic'] = 'stream'
-              notification['name'] = 'extraction'
-              self::notify(opts,'stream','extraction',notification.to_json)
+              self::notify(
+                opts,
+                'stream',
+                'extraction',
+                notification.merge(
+                  'topic'=>'stream',
+                  'name'=>'extraction',
+                  'datastream'=>event['stream:datastream']
+                ).to_json
+              )
             end
           end
         end
@@ -362,11 +367,17 @@ module CPEE
             File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
               f << {'event' => te}.to_yaml
             end
-            notification['datastream'] = te['stream:datastream']
             EM.defer do
-              notification['topic'] = 'stream'
-              notification['name'] = 'extraction'
-              self::notify(opts,'stream','extraction',notification.to_json)
+              self::notify(
+                opts,
+                'stream',
+                'extraction',
+                notification.merge(
+                  'topic'=>'stream',
+                  'name'=>'extraction',
+                  'datastream'=>te['stream:datastream']
+                ).to_json
+              )
             end
           end
         end
