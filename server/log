@@ -17,7 +17,7 @@
 # <http://www.gnu.org/licenses/>.
 
 require 'rubygems'
-require 'cpee-logging-xes-yaml/logging'
+require 'cpee-logging-xes-yaml/implementation'
 
 options = {
   :host => 'localhost',

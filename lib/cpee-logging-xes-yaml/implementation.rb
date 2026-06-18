@@ -14,7 +14,6 @@
 # CPEE-LOGGING-XES-YAML (file LICENSE in the main directory).  If not, see
 # <http://www.gnu.org/licenses/>.
 
-require 'rubygems'
 require 'redis'
 require 'json'
 require 'yaml'
@@ -26,7 +25,7 @@ require_relative 'tools'
 module CPEE
   module Logging
 
-    SERVER = File.expand_path(File.join(__dir__,'logging.xml'))
+    SERVER = File.expand_path(File.join(__dir__,'implementation.xml'))
 
     class Handler < Riddl::Implementation
       def response
@@ -77,7 +76,7 @@ module CPEE
     class Topics < Riddl::Implementation #{{{
       def response
         opts = @a[0]
-        Riddl::Parameter::Complex.new("overview","text/xml") do
+        Riddl::Parameter::Complex.new('overview','text/xml') do
           File.read(opts[:topics])
         end
       end
@@ -86,7 +85,7 @@ module CPEE
     class Subscriptions < Riddl::Implementation #{{{
       def response
         opts = @a[0]
-        Riddl::Parameter::Complex.new("subscriptions","text/xml") do
+        Riddl::Parameter::Complex.new('subscriptions','text/xml') do
           ret = XML::Smart::string <<-END
             <subscriptions xmlns='http://riddl.org/ns/common-patterns/notifications-producer/2.0'/>
           END
@@ -109,7 +108,7 @@ module CPEE
         id = @r[-1]
         doc = XML::Smart::open_unprotected(File.join(opts[:notifications_dir],id,'subscription.xml'))
         doc.root.attributes['id'] = id
-        Riddl::Parameter::Complex.new("subscriptions","text/xml",doc.to_s)
+        Riddl::Parameter::Complex.new('subscriptions','text/xml',doc.to_s)
       end
     end #}}}
 
@@ -119,6 +118,19 @@ module CPEE
       opts[:template]          ||= File.expand_path(File.join(__dir__,'template.xes_yaml'))
       opts[:topics]            ||= File.expand_path(File.join(__dir__,'topics.xml'))
       opts[:subscriptions]     =  {}
+
+      ### set redis_cmd to nil if you want to do global
+      ### at least redis_path or redis_url and redis_db have to be set if you do global
+      opts[:redis_db]                   ||= 0
+      opts[:redis_url]                  ||= 'unix://redis.sock' # sadly we have to do this for now
+      opts[:redis_unixsocket]           ||= true
+      opts[:redis_cmd]                  ||= 'redis-server --port #redis_port# --unixsocket #redis_path# --unixsocketperm 600 --pidfile #redis_pid# --dir         #redis_db_dir# --dbfilename                  #redis_db_name# --databases 1 --save 900 1 --save 300 10 --save 60 10000 --rdbcompression yes --            daemonize yes --protected-mode no'
+      opts[:redis_pid]                  ||= 'redis.pid' # use e.g. /var/run/redis.pid if you do global. Look it up in your redis config
+      opts[:redis_db_name]              ||= 'redis.rdb' # use e.g. /var/lib/redis.rdb for global stuff. Look it up in your redis config
+
+      opts[:sse_keepalive_frequency]    ||= 10
+
+      CPEE::redis_connect opts, 'Server Main'
 
       Dir.glob(File.join(opts[:notifications_dir],'*','subscription.xml')).each do |f|
         XML::Smart::open_unprotected(f) do |doc|
@@ -137,12 +149,12 @@ module CPEE
           run Handler, opts if post 'event'
         end
         interface 'notifications' do
-          on resource "notifications" do
+          on resource 'notifications' do
             run Overview if get
-            on resource "topics" do
+            on resource 'topics' do
               run Topics, opts if get
             end
-            on resource "subscriptions" do
+            on resource 'subscriptions' do
               run Subscriptions, opts if get
               run CreateSubscription, opts if post 'create_subscription'
               on resource do
