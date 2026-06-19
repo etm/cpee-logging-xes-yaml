@@ -114,53 +114,6 @@ module CPEE
       end
     end
 
-    def self::extract_probes(where,xml)
-      XML::Smart::string(xml) do |doc|
-        doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
-        doc.find('//d:call | //d:manipulate').each do |c|
-          File.unlink(where + '_' + c.attributes['id'] + '.probe') rescue nil
-          c.find('d:annotations/d:_context_data_analysis/d:probes[d:probe]').each do |p|
-            File.write(where + '_' + c.attributes['id'] + '.probe', p.dump)
-          end
-        end
-      end
-    end
-
-    def self::extract_annotations(where,xml)
-      ret = {}
-      XML::Smart::string(xml) do |doc|
-        doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
-        doc.find('/d:description | //d:call | //d:manipulate').each do |c|
-          tid = c.attributes['id'] || 'complex'
-          fname = where + '_' + tid + '.anno'
-          nset = if tid == 'complex'
-            c.find('d:*[starts-with(name(),"_")]')
-          else
-            c.find('d:annotations')
-          end
-          nset.each do |p|
-            anno = p.dump
-            ret[tid] ||= []
-            ret[tid] << anno
-          end
-          if ret[tid]
-            if ret[tid].length > 1
-              ret[tid] = "<annotations xmlns=\"http://cpee.org/ns/description/1.0\">\n" +
-                ret[tid].join("\n") + "\n" +
-                '</annotations>'
-            else
-              ret[tid] = ret[tid][0]
-            end
-            hash = Digest::SHA1.hexdigest(ret[tid])
-            if !File.exist?(fname) || File.read(fname) !=  hash
-              File.write(fname,hash)
-            end
-          end
-        end
-      end
-      ret
-    end
-
     def self::extract_result(result)
       ret = result.map do |res|
         if res['mimetype'].nil?
@@ -198,30 +151,6 @@ module CPEE
       e.backtrace[0].gsub(/(\w+):(\d+):in.*/,'Probe ' + pid + ' Line \2: ') + e.message
     end
 
-    def self::persist_values(where,values)
-      unless File.exist?(where)
-        File.write(where,'{}')
-      end
-      f = File.open(where,'r+')
-      f.flock(File::LOCK_EX)
-      json = JSON::load(f) || {}
-      json.merge!(values)
-      f.rewind
-      f.truncate(0)
-      f.write(JSON.generate(json))
-      f.flock(File::LOCK_UN)
-      f.close
-    end
-    def self::load_values(where)
-      ret = nil
-      File.open(where,'r') do |f|
-        f.flock(File::LOCK_SH)
-        ret = JSON::load(f)
-        f.flock(File::LOCK_UN)
-      end
-      ret
-    end
-
     def self::forward(opts,topic,event_name,payload)
       if topic == 'state' && event_name == 'change'
         self::notify(opts,topic,event_name,payload)
@@ -245,29 +174,6 @@ module CPEE
       eid = nil if eid == '' || eid&.strip == ''
       parameters = content['parameters']
       receiving = content['received']
-
-      # if content['dslx']
-      #   CPEE::Logging::extract_probes(File.join(log_dir,instance),content['dslx'])
-      #   CPEE::Logging::extract_annotations(File.join(log_dir,instance),content['dslx']).each do |k,v|
-      #     so = JSON.parse(notification.to_json)
-      #     so['content'].delete('dslx')
-      #     so['content'].delete('dsl')
-      #     so['content'].delete('description')
-      #     so['content']['annotation'] = v
-      #     so['content']['activity'] = k
-      #     so['topic'] = 'annotation'
-      #     so['name'] = 'change'
-      #     EM.defer do
-      #       self::notify(opts,'annotation','change',so.to_json)
-      #     end
-      #   end
-      # end
-
-      #if topic == 'dataelements' && event_name == 'change'
-      #  if content['changed']&.any?
-      #    CPEE::Logging::persist_values(File.join(log_dir,instance + '.data.json'),content['values'])
-      #  end
-      #end
 
       event = {}
       event['concept:instance'] = instancenr
@@ -304,85 +210,73 @@ module CPEE
         end
       end
 
-      #  fname = File.join(log_dir,instance + '_' + event['id:id'] + '.probe')
-      #  dname = File.join(log_dir,instance + '.data.json')
+      if topic == 'task' && event_name == 'probe'
+        rs = WEEL::ReadStructure.new(content['data'],{},{},{})
+        rc = CPEE::Logging::extract_result(receiving) if receiving && !receiving.empty?
+        te = event.dup
 
-      #  # Handle intrinsic data probes
-      #  if File.exist?(fname)
-      #    rs = WEEL::ReadStructure.new(File.exist?(dname) ? CPEE::Logging::load_values(dname) : {},{},{},{})
-      #    XML::Smart::open_unprotected(fname) do |doc|
-      #      doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
-      #      doc.find('//d:probe[d:extractor_type="intrinsic"]').each do |p|
-      #        pid    = p.find('string(d:id)')
-      #        source = p.find('string(d:source)')
-      #        val = CPEE::Logging::extract_val(rs,p.find('string(d:extractor_code)'),pid,nil) rescue nil
-      #        # Do not add datastream entries if the dataprobes return nil
-      #        if val != nil
-      #          event['stream:datastream'] ||= []
-      #          CPEE::Logging::merge_val(event['stream:datastream'],val,pid,source)
-      #        end
-      #      end
-      #    end
-      #    if event['stream:datastream'] && event['stream:datastream'].any?
-      #      EM.defer do
-      #        self::notify(
-      #          opts,
-      #          'stream',
-      #          'extraction',
-      #          notification.merge(
-      #            'topic'=>'stream',
-      #            'name'=>'extraction',
-      #            'datastream'=>event['stream:datastream']
-      #          ).to_json
-      #        )
-      #      end
-      #    end
-      #  end
-      #end
-      ## Handle extrinsic data probes
-      #if topic == 'activity' && event_name == 'receiving' && receiving && !receiving.empty?
-      #  fname = File.join(log_dir,instance + '_' + event['id:id'] + '.probe')
-      #  dname = File.join(log_dir,instance + '.data.json')
+        content['probes'].each do |p|
 
-      #  if File.exist?(fname)
-      #    te = event.dup
+          if p.dig('probe','extractor_type') == 'intrinsic'
+            pid    = p.dig('probe','id')
+            source = p.dig('probe','source')
+            val = CPEE::Logging::extract_val(rs,p.dig('probe','extractor_code'),pid,nil) rescue nil
+            # Do not add datastream entries if the dataprobes return nil
+            if val != nil
+              event['stream:datastream'] ||= []
+              CPEE::Logging::merge_val(event['stream:datastream'],val,pid,source)
+            end
+            if event['stream:datastream'] && event['stream:datastream'].any?
+              EM.defer do
+                self::notify(
+                  opts,
+                  'stream',
+                  'extraction',
+                  notification.merge(
+                    'topic'=>'stream',
+                    'name'=>'extraction',
+                    'datastream'=>event['stream:datastream']
+                  ).to_json
+                )
+              end
+            end
+          end
 
-      #    rs = WEEL::ReadStructure.new(File.exist?(dname) ? CPEE::Logging::load_values(dname) : {},{},{},{})
-      #    XML::Smart::open_unprotected(fname) do |doc|
-      #      doc.register_namespace 'd', 'http://cpee.org/ns/description/1.0'
-      #      if doc.find('//d:probe/d:extractor_type[.="extrinsic"]').any?
-      #        rc = CPEE::Logging::extract_result(receiving)
-      #        doc.find('//d:probe[d:extractor_type="extrinsic"]').each do |p|
-      #          pid = p.find('string(d:id)')
-      #          te['stream:datastream'] ||= []
-      #          val = CPEE::Logging::extract_val(rs,p.find('string(d:extractor_code)'),pid,rc) rescue nil
-      #          if not val.nil?
-      #            # Do not add datastream entries if the dataprobes return nil
-      #            CPEE::Logging::merge_val(te['stream:datastream'],val,pid,p.find('string(d:source)'))
-      #          end
-      #        end
-      #      end
-      #    end
-      #    if te['stream:datastream'] && te['stream:datastream'].any?
-      #      te['cpee:lifecycle:transition'] = 'stream/data'
-      #      File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
-      #        f << {'event' => te}.to_yaml
-      #      end
-      #      EM.defer do
-      #        self::notify(
-      #          opts,
-      #          'stream',
-      #          'extraction',
-      #          notification.merge(
-      #            'topic'=>'stream',
-      #            'name'=>'extraction',
-      #            'datastream'=>te['stream:datastream']
-      #          ).to_json
-      #        )
-      #      end
-      #    end
-      #  end
-      #end
+          if receiving && !receiving.empty?
+            if p.dig('probe','extractor_type') == 'extrinsic'
+              pid    = p.dig('probe','id')
+              source = p.dig('probe','source')
+              val = CPEE::Logging::extract_val(rs,p.dig('probe','extractor_code'),pid,rc) rescue nil
+              # Do not add datastream entries if the dataprobes return nil
+              if val != nil
+                te['stream:datastream'] ||= []
+                CPEE::Logging::merge_val(te['stream:datastream'],val,pid,source)
+              end
+              if te['stream:datastream'] && te['stream:datastream'].any?
+                te['cpee:lifecycle:transition'] = 'stream/data'
+                File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
+                  f << {'event' => te}.to_yaml
+                end
+                EM.defer do
+                  self::notify(
+                    opts,
+                    'stream',
+                    'extraction',
+                    notification.merge(
+                      'topic'=>'stream',
+                      'name'=>'extraction',
+                      'datastream'=>te['stream:datastream']
+                    ).to_json
+                  )
+                end
+              end
+            end
+          end
+
+        end
+
+      end
+
       if receiving && !receiving.empty?
         event['data'] = receiving
       end
