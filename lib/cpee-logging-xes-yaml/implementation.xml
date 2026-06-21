@@ -23,9 +23,15 @@
   <interface name="notifications">
     <xi:include href="http://www.riddl.org/ns/common-patterns/notifications-producer/2.0/producer.xml"/>
   </interface>
+  <interface name="access">
+    <xi:include href="access.xml"/>
+  </interface>
 
   <facade>
     <tile>
+      <layer name="access">
+        <apply-to>/logs</apply-to>
+      </layer>
       <layer name="events">
         <apply-to>/</apply-to>
       </layer>

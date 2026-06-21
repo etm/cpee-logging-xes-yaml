@@ -27,6 +27,70 @@ module CPEE
 
     SERVER = File.expand_path(File.join(__dir__,'implementation.xml'))
 
+    class HeaderAndFile #{{{
+      def initialize(header, io)
+        @header = header
+        @io = io
+        @position = 0
+      end
+
+      def read(length = nil, outbuf = nil)
+        if @position < @header.bytesize
+          data = read_header(length)
+
+          if length && data.bytesize < length
+            remaining_length = length - data.bytesize
+            file_data = @io.read
+            data << file_data if file_data
+          end
+        else
+          data = @io.read(length)
+        end
+
+        return data.nil? || data.empty? && length ? nil : append_to_outbuf(data, outbuf)
+      end
+
+      def rewind
+        @io&.rewind
+        @position = 0 # returning position is the way rewind does it
+      end
+
+      def close
+        @io&.close
+        @io = nil
+      end
+
+      def read_header(length)
+        chunk = if length
+          @header.byteslice(@position, length)
+        else
+          @header.byteslice(@position..-1)
+        end
+        @position += chunk.bytesize
+        chunk
+      end
+      private :read_header
+
+      def append_to_outbuf(data, outbuf)
+        outbuf ? outbuf.replace(data || '') : data
+      end
+      private :append_to_outbuf
+    end #}}}
+
+    class DownloadYAML < Riddl::Implementation
+      def response
+        opts = @a[0]
+        fname = File.join(opts[:log_dir],@r[-1])
+        if File.exist?(fname)
+          io = File.open fname
+          header = File.read(fname.sub(/yaml$/,'header')) if File.exist?(fname.sub(/yaml$/,'header'))
+          Riddl::Parameter::Complex::new('log','text/yaml',HeaderAndFile.new(header || '',File.open(fname)))
+        else
+          @status = 404
+        end
+      end
+    end
+
     class Handler < Riddl::Implementation
       def response
         opts       = @a[0]
@@ -35,20 +99,20 @@ module CPEE
         event_name = @p[2].value
         payload    = @p[3].value.read
 
-        ### we do not write headers for now. Or else we can only do per instance sharding.
-        # unless File.exist? File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID'] + '.xes.yaml')
-        #   notification = JSON.parse(payload)
-        #   log = YAML::load(File.read(opts[:template]))
-        #   log['log']['trace']['concept:name']                    ||= notification['instance']
-        #   log['log']['trace']['cpee:name']                       ||= notification['instance-name'] if notification['instance-name']
-        #   log['log']['trace']['cpee:instance']                   ||= notification['instance-uuid']
-        #   log['log']['trace']['cpee:parent_instance']            ||= notification.dig('content','attributes','parent_instance').to_i       if notification.dig('content','attributes','parent_instance')
-        #   log['log']['trace']['cpee:parent_instance_uuid']       ||= notification.dig('content','attributes','parent_instance_uuid')       if notification.dig('content','attributes','parent_instance_uuid')
-        #   log['log']['trace']['cpee:parent_instance_model']      ||= notification.dig('content','attributes','parent_instance_model')      if notification.dig('content','attributes','parent_instance_model')
-        #   log['log']['trace']['cpee:parent_instance_task_id']    ||= notification.dig('content','attributes','parent_instance_task_id')    if notification.dig('content','attributes','parent_instance_task_id')
-        #   log['log']['trace']['cpee:parent_instance_task_label'] ||= notification.dig('content','attributes','parent_instance_task_label') if notification.dig('content','attributes','parent_instance_task_label')
-        #   File.open(File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID']+'.xes.yaml'),'w'){|f| f.puts log.to_yaml}
-        # end
+        ### we write headers into its own file. If race condition at first, no problemo
+        unless File.exist? File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID'] + '.xes.header')
+          notification = JSON.parse(payload)
+          log = YAML::load(File.read(opts[:template]))
+          log['log']['trace']['concept:name']                    ||= notification['instance']
+          log['log']['trace']['cpee:name']                       ||= notification['instance-name'] if notification['instance-name']
+          log['log']['trace']['cpee:instance']                   ||= notification['instance-uuid']
+          log['log']['trace']['cpee:parent_instance']            ||= notification.dig('content','attributes','parent_instance').to_i       if notification.dig('content','attributes','parent_instance')
+          log['log']['trace']['cpee:parent_instance_uuid']       ||= notification.dig('content','attributes','parent_instance_uuid')       if notification.dig('content','attributes','parent_instance_uuid')
+          log['log']['trace']['cpee:parent_instance_model']      ||= notification.dig('content','attributes','parent_instance_model')      if notification.dig('content','attributes','parent_instance_model')
+          log['log']['trace']['cpee:parent_instance_task_id']    ||= notification.dig('content','attributes','parent_instance_task_id')    if notification.dig('content','attributes','parent_instance_task_id')
+          log['log']['trace']['cpee:parent_instance_task_label'] ||= notification.dig('content','attributes','parent_instance_task_label') if notification.dig('content','attributes','parent_instance_task_label')
+          File.open(File.join(opts[:log_dir],@h['CPEE_INSTANCE_UUID']+'.xes.header'),'w'){|f| f.puts log.to_yaml}
+        end
 
         EM.defer do
           CPEE::Logging::forward opts, topic, event_name, payload
@@ -134,6 +198,14 @@ module CPEE
       end
 
       Proc.new do
+        interface 'access' do
+          on resource '[a-f0-9-]+.xes.yaml' do
+            run DownloadYAML, opts if get
+          end
+          on resource '[a-f0-9-]+.xes.xml' do
+            run DownloadXML, opts if get
+          end
+        end
         interface 'events' do
           run Handler, opts if post 'event'
         end
