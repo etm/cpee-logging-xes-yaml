@@ -27,6 +27,43 @@ module CPEE
 
     SERVER = File.expand_path(File.join(__dir__,'implementation.xml'))
 
+    TEMPLATE_XES_XML_START = <<-END
+<log xmlns="http://www.xes-standard.org/" xes.version="2.0" xes.features="nested-attributes">
+  <string key="creator" value="cpee.org"/>
+  <extension name="Time" prefix="time" uri="http://www.xes-standard.org/time.xesext"/>
+  <extension name="Concept" prefix="concept" uri="http://www.xes-standard.org/concept.xesext"/>
+  <extension name="ID" prefix="id" uri="http://www.xes-standard.org/identity.xesext"/>
+  <extension name="Lifecycle" prefix="lifecycle" uri="http://www.xes-standard.org/lifecycle.xesext"/>
+  <extension name="CPEE" prefix="cpee" uri="http://cpee.org/cpee.xesext"/>
+  <extension name="stream" prefix="stream" uri="https://cpee.org/datastream/datastream.xesext"/>
+  <global scope="trace">
+    <string key="concept:name" value="__NOTSPECIFIED__"/>
+    <string key="cpee:name" value="__NOTSPECIFIED__"/>
+  </global>
+  <global scope="event">
+    <string key="concept:name" value="__NOTSPECIFIED__"/>
+    <string key="concept:instance" value="-1"/>
+    <string key="concept:endpoint" value="__NOTSPECIFIED__"/>
+    <string key="id:id" value="__NOTSPECIFIED__"/>
+    <string key="lifecycle:transition" value="complete" />
+    <string key="cpee:lifecycle:transition" value="activity/calling"/>
+    <date key="time:timestamp" value="__NOTSPECIFIED__"/>
+  </global>
+    END
+    TEMPLATE_XES_XML_TRC = <<-END
+<trace xmlns="http://www.xes-standard.org/"/>
+    END
+    TEMPLATE_XES_XML_EVT = <<-END
+<event xmlns="http://www.xes-standard.org/"/>
+    END
+    TEMPLATE_XES_XML_MID = <<-END
+  <trace>
+    END
+    TEMPLATE_XES_XML_END = <<-END
+  </trace>
+</log>
+    END
+
     class HeaderAndFile #{{{
       def initialize(header, io)
         @header = header
@@ -85,6 +122,101 @@ module CPEE
           io = File.open fname
           header = File.read(fname.sub(/yaml$/,'header')) if File.exist?(fname.sub(/yaml$/,'header'))
           Riddl::Parameter::Complex::new('log','text/yaml',HeaderAndFile.new(header || '',File.open(fname)))
+        else
+          @status = 404
+        end
+      end
+    end
+
+    class DownloadXML < Riddl::Implementation
+      def self::rec_type(it) #{{{
+        if it.is_a?(String) && it =~ /^[\dT:+.-]+$/ && (Time.parse(it) rescue nil)
+          'x:date'
+        elsif it.is_a? Float
+          'x:float'
+        elsif it.is_a? Integer
+          'x:int'
+        elsif it.is_a? String
+          'x:string'
+        end
+      end #}}}
+
+      def self::format_secs(s) #{{{
+        return 'long' if s.infinite?
+        s = s.to_i
+        m = s / 60
+        m < 0 ? "#{s}s" : "#{'%02d' % m}m #{'%02d' % (s%60)}s"
+      end #}}}
+
+      def self::rec_a_insert(event,node,level=0) #{{{
+        event.each do |i|
+          tnode = node
+          case i
+            when Hash
+              tnode = node.add('x:list', 'key' => 'element')
+              self::rec_insert(i,tnode,level+1)
+            when Array
+              tnode = node.add('x:list', 'key' => 'element')
+              self::rec_insert(i,tnode,level+1)
+            when String
+              node.add(rec_type(i), 'key' => 'element', 'value' => (i.empty? ? "__UNSPECIFIED__" : i))
+            when Integer, Float
+              node.add(rec_type(i), 'key' => 'element', 'value' => i)
+          end
+        end
+      end #}}}
+
+      def self::rec_insert(event,node,level=0) #{{{
+        event.each do |k,v|
+          case v
+            when String
+              node.add(rec_type(v), 'key' => k, 'value' => (v.empty? ? "__UNSPECIFIED__" : v))
+            when Integer
+              node.add(rec_type(v), 'key' => k, 'value' => v)
+            when Float
+              node.add(rec_type(v), 'key' => k, 'value' => v)
+            when Array
+              tnode = node.add('x:list', 'key' => k)
+              self::rec_a_insert(v,tnode,level+1)
+            when Hash
+              tnode = node.add('x:list', 'key' => k)
+              self::rec_insert(v,tnode)
+          end
+        end
+      end #}}}
+
+      def response
+        opts = @a[0]
+        fname = File.join(opts[:log_dir],@r[-1]).sub(/xml$/,'yaml')
+        if File.exist?(fname)
+          body = StringIO.new
+
+          body.write(TEMPLATE_XES_XML_START)
+
+          io = File.open(fname)
+          YAML.load_stream(io) do |e|
+            if trace = e.dig('log','trace')
+              xml = XML::Smart.string(TEMPLATE_XES_XML_TRC)
+              xml.register_namespace 'x', 'http://www.xes-standard.org/'
+              trace.each do |t,tv|
+                xml.find('//x:trace').each do |ele|
+                  ele.add('x:string', 'key' => t, 'value' => tv)
+                end
+              end
+              body.write('  ' + xml.root.dump.gsub(/\n/,"\n  ") + "\n")
+              body.write(TEMPLATE_XES_XML_MID)
+            end
+            if e.dig('event')
+              xml = XML::Smart.string(TEMPLATE_XES_XML_EVT)
+              xml.register_namespace 'x', 'http://www.xes-standard.org/'
+              DownloadXML::rec_insert(e.dig('event'),xml.root)
+              body.write('    ' + xml.root.dump.gsub(/\n/,"\n    ") + "\n")
+            end
+          end
+          body.write(TEMPLATE_XES_XML_END)
+          body.rewind
+
+          Riddl::Parameter::Complex::new('log','application/xml',body)
         else
           @status = 404
         end
