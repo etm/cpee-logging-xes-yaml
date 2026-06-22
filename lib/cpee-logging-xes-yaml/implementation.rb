@@ -27,6 +27,7 @@ module CPEE
 
     SERVER = File.expand_path(File.join(__dir__,'implementation.xml'))
 
+    ### Pieces for writing XML{{{
     TEMPLATE_XES_XML_START = <<-END
 <log xmlns="http://www.xes-standard.org/" xes.version="2.0" xes.features="nested-attributes">
   <string key="creator" value="cpee.org"/>
@@ -59,10 +60,13 @@ module CPEE
     TEMPLATE_XES_XML_MID = <<-END
   <trace>
     END
-    TEMPLATE_XES_XML_END = <<-END
+    TEMPLATE_XES_XML_MID_END = <<-END
   </trace>
+    END
+    TEMPLATE_XES_XML_END = <<-END
 </log>
     END
+    #}}}
 
     class HeaderAndFile #{{{
       def initialize(header, io)
@@ -114,7 +118,7 @@ module CPEE
       private :append_to_outbuf
     end #}}}
 
-    class DownloadYAML < Riddl::Implementation
+    class DownloadYAML < Riddl::Implementation #{{{
       def response
         opts = @a[0]
         fname = File.join(opts[:log_dir],@r[-1])
@@ -126,7 +130,7 @@ module CPEE
           @status = 404
         end
       end
-    end
+    end #}}}
 
     class DownloadXML < Riddl::Implementation
       def self::rec_type(it) #{{{
@@ -188,24 +192,31 @@ module CPEE
       def response
         opts = @a[0]
         fname = File.join(opts[:log_dir],@r[-1]).sub(/xml$/,'yaml')
+        hname = File.join(opts[:log_dir],@r[-1]).sub(/xml$/,'header')
         if File.exist?(fname)
           body = StringIO.new
 
           body.write(TEMPLATE_XES_XML_START)
 
-          io = File.open(fname)
-          YAML.load_stream(io) do |e|
-            if trace = e.dig('log','trace')
-              xml = XML::Smart.string(TEMPLATE_XES_XML_TRC)
-              xml.register_namespace 'x', 'http://www.xes-standard.org/'
-              trace.each do |t,tv|
-                xml.find('//x:trace').each do |ele|
-                  ele.add('x:string', 'key' => t, 'value' => tv)
+          if File.exist?(hname)
+            hio = File.open(hname)
+            YAML.load_stream(hio) do |e|
+              if trace = e.dig('log','trace')
+                xml = XML::Smart.string(TEMPLATE_XES_XML_TRC)
+                xml.register_namespace 'x', 'http://www.xes-standard.org/'
+                trace.each do |t,tv|
+                  xml.find('//x:trace').each do |ele|
+                    ele.add('x:string', 'key' => t, 'value' => tv)
+                  end
                 end
+                body.write('  ' + xml.root.dump.gsub(/\n/,"\n  ") + "\n")
               end
-              body.write('  ' + xml.root.dump.gsub(/\n/,"\n  ") + "\n")
-              body.write(TEMPLATE_XES_XML_MID)
             end
+          end
+
+          io = File.open(fname)
+          body.write(TEMPLATE_XES_XML_MID)
+          YAML.load_stream(io) do |e|
             if e.dig('event')
               xml = XML::Smart.string(TEMPLATE_XES_XML_EVT)
               xml.register_namespace 'x', 'http://www.xes-standard.org/'
@@ -213,6 +224,7 @@ module CPEE
               body.write('    ' + xml.root.dump.gsub(/\n/,"\n    ") + "\n")
             end
           end
+          body.write(TEMPLATE_XES_XML_MID_END)
           body.write(TEMPLATE_XES_XML_END)
           body.rewind
 
