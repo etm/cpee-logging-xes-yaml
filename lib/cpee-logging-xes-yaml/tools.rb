@@ -210,10 +210,12 @@ module CPEE
         end
       end
 
+      event['time:timestamp'] = notification['timestamp'] || Time.now.xmlschema(4)
+
       if topic == 'task' && event_name == 'probe'
         rs = WEEL::ReadStructure.new(content['data'],{},{},{})
         rc = CPEE::Logging::extract_result(receiving) if receiving && !receiving.empty?
-        te = event.dup
+        te = event
 
         content['probes'].each do |p|
 
@@ -254,9 +256,6 @@ module CPEE
               end
               if te['stream:datastream'] && te['stream:datastream'].any?
                 te['cpee:lifecycle:transition'] = 'stream/data'
-                File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
-                  f << {'event' => te}.to_yaml
-                end
                 EM.defer do
                   self::notify(
                     opts,
@@ -274,19 +273,18 @@ module CPEE
           end
 
         end
-
+        event = nil if !event['stream:datastream']
+      else
+        if receiving && !receiving.empty?
+          event['data'] = receiving
+        end
+        if content['data'] && !content['data'].empty?
+          event['data'] = content['data']
+        end
       end
-
-      if receiving && !receiving.empty?
-        event['data'] = receiving
-      end
-      if content['data'] && !content['data'].empty?
-        event['data'] = content['data']
-      end
-      event['time:timestamp']= notification['timestamp'] || Time.now.xmlschema(4)
       File.open(File.join(log_dir,instance+'.xes.yaml'),'a') do |f|
         f << {'event' => event}.to_yaml
-      end
+      end unless event.nil? # :-) for task/probes
     end
 
   end
