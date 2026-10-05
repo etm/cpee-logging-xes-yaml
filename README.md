@@ -14,7 +14,7 @@ host, or local-only access, ...), create a file log.conf and add one
 or many of the following yaml keys:
 
 ```yaml
- :port: 9250
+ :port: 9299
  :host: cpee.org
  :bind: 127.0.0.1
  :log_dir: /var/log/cpee
