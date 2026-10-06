@@ -190,11 +190,11 @@ def react(name,copy=false,deep=0,index=nil)
   end
 end
 
-def extract(path)
+def ropen(path)
   unlink = false
   if path =~ /^http.*/
     unlink = true
-    text = Tempfile.new('extract-model-download')
+    fhandle = Tempfile.new('extract-model-download')
     request = Typhoeus::Request.new(path)
     request.on_headers do |response|
       if response.code != 200
@@ -202,15 +202,20 @@ def extract(path)
       end
     end
     request.on_body do |chunk|
-      text.write(chunk)
+      fhandle.write(chunk)
     end
     request.on_complete do |response|
-      text.rewind
+      fhandle.rewind
     end
     request.run
   else
-    text = File.open(path)
+    fhandle = File.open(path)
   end
+  [fhandle,unlink]
+end
+
+def extract(path)
+  text, unlink = ropen(path)
   yaml = Psych.load_stream(text)
   changes = []
 
@@ -278,6 +283,8 @@ ARGV.options { |opt|
   opt.on(wrap("index [LOG]        creates an index for a log file, for more efficient parsing. When called without [LOG], indexes all log files in the current directory. Examples:\n#{exname} index https://cpee.org/log/123.xes.yaml\n#{exname} index ~/log/logs/456.xes.yaml"))
 	opt.on("")
   opt.on(wrap("to-xes-xml [LOG]   convert cpee xes-yaml to xes-xml. Works for local and remote logs. When called without [LOG], all log files in the current directory are converted. Examples:\n#{exname} to-xes-xml https://cpee.org/log/123.xes.yaml\n#{exname} to-xes-xml ~/log/logs/456.xes.yaml"))
+  opt.on("")
+  opt.on(wrap("sort [LOG]         sort a cpee xes-yaml file by time:timestamp. Works for local and remote logs. When called without [LOG], all log files in the current directory are sorted. Examples:\n#{exname} sort https://cpee.org/log/123.xes.yaml\n#{exname} sort ~/log/logs/456.xes.yaml"))
   opt.parse!
 }
 
@@ -460,6 +467,44 @@ elsif command == 'to-xes-xml'
     end
     File.write(fname, TEMPLATE_XES_XML_END, mode: 'a')
     puts "#{count}/#{total.to_i} 100% (took #{format_secs(duration)})                                         \n"
+  end
+elsif command == 'sort'
+  path = if path
+    [path]
+  else
+    Dir.glob('*.xes.yaml')
+  end
+  path.each do |f|
+    index = []
+    write_list = []
+    io,unlink = ropen(f)
+    while(io.eof?().!())
+      start = io.pos()
+      docs = io.readline("---\n",chomp: true)
+      doc = YAML::load(docs, permitted_classes: [Time])
+      if(doc.nil?().!()) then
+        ts = doc.dig('event','time:timestamp')
+        if(ts.nil?().!())
+          index.push({ :ts => ts, :s => start.to_i(), :l => docs.length().to_i() })
+        else
+          if(index.empty?())
+            write_list.push({ :s => start.to_i(), :l => docs.length().to_i() })
+          else
+            index.last()[:l] = index.last()[:l]+4+docs.length().to_i()
+          end
+        end
+      end
+    end
+    write_list.concat(index.sort() { |a,b| Time.parse(a[:ts]) <=> Time.parse(b[:ts]) })
+    output_file = File.open("#{File.basename(f,'.xes.yaml')}.sorted.xes.yaml", 'w')
+    write_list.each() { |el|
+      output_file.write("---\n")
+      io.seek(el[:s],IO::SEEK_SET)
+      output_file.write(io.read(el[:l]))
+    }
+    output_file.close()
+    io.close()
+    io.unlink() if unlink
   end
 else
   puts ARGV.options
