@@ -294,7 +294,7 @@ if (ARGV.length < 1 || ARGV.length > 2)
 elsif ARGV.length == 2
   command = ARGV[0]
   path = ARGV[1]
-elsif (ARGV.length == 1 || ARGV.length == 2) && %w{index extract-last to-xes-xml}.include?(ARGV[0])
+elsif (ARGV.length == 1 || ARGV.length == 2) && %w{index extract-last to-xes-xml sort}.include?(ARGV[0])
   command = ARGV[0]
 end
 
