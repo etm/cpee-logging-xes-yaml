@@ -199,7 +199,13 @@ module CPEE
       event['cpee:change_uuid'] = content['change_uuid'] if content['change_uuid']
       event['cpee:exposition'] = content['exposition'] if content['exposition']
       if topic == 'gateway' && event_name == 'decide'
-        event['data'] = { 'condition' => content['code'], 'result' => content['condition'] }
+        event['data'] = {
+          'condition' => content['code'],
+          'result' => content['condition'],
+          'type' => content['type'],
+          'variant' => content['variant'],
+          'count' => content['count']
+        }.compact
       end
       unless parameters['arguments']&.nil?
         event['data'] = parameters['arguments']
