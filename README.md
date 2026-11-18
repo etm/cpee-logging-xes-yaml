@@ -32,6 +32,7 @@ a testset/template:
       <events topic="attributes">change</events>
       <events topic="task">instantiation</events>
       <events topic="description">change</events>
+      <events topic="status">exposition</events>
       <events topic="state">change</events>
     </handler>
   </handlers>
@@ -70,6 +71,9 @@ notifications/logging/subscription.xml
   </topic>
   <topic id="description">
     <event>change</event>
+  </topic>
+  <topic id="status">
+    <event>exposition</event>
   </topic>
   <topic id="state">
     <event>change</event>

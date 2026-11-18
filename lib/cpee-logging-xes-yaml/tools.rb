@@ -198,7 +198,14 @@ module CPEE
       event['cpee:description'] = content['dslx'] if content['dslx']
       event['cpee:change_uuid'] = content['change_uuid'] if content['change_uuid']
       event['cpee:exposition'] = content['exposition'] if content['exposition']
-      event['cpee:info'] = content['info'] if content['exposition'] && content['info']
+      if content['exposition'] && content['info']
+        info = content['info']
+        if info.is_a?(Hash) && info.key?('interaction')
+          event['cpee:interaction_uuid'] = info['interaction']
+          info = info.reject { |k,_| k == 'interaction' }
+        end
+        event['cpee:info'] = info
+      end
       if topic == 'gateway' && event_name == 'decide'
         event['data'] = {
           'condition' => content['code'],
