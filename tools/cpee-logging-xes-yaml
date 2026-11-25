@@ -485,12 +485,12 @@ elsif command == 'sort'
       if(doc.nil?().!()) then
         ts = doc.dig('event','time:timestamp')
         if(ts.nil?().!())
-          index.push({ :ts => ts, :s => start.to_i(), :l => docs.length().to_i() })
+          index.push({ :ts => ts, :s => start.to_i(), :l => docs.bytesize().to_i() })
         else
           if(index.empty?())
-            write_list.push({ :s => start.to_i(), :l => docs.length().to_i() })
+            write_list.push({ :s => start.to_i(), :l => docs.bytesize().to_i() })
           else
-            index.last()[:l] = index.last()[:l]+4+docs.length().to_i()
+            index.last()[:l] = index.last()[:l]+4+docs.bytesize().to_i()
           end
         end
       end
